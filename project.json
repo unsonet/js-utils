@@ -1,17 +1,24 @@
 {
-  "name": "utils",
+  "name": "js-utils",
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
-  "sourceRoot": "libs/utils/src",
+  "sourceRoot": "libs/js-utils/src",
   "projectType": "library",
   "targets": {
     "build": {
       "executor": "@nx/js:tsc",
       "outputs": ["{options.outputPath}"],
+      "dependsOn": [
+        "^build",
+        {
+          "projects": "dependencies",
+          "target": "build"
+        }
+      ],
       "options": {
-        "outputPath": "dist/libs/utils",
-        "main": "libs/utils/src/index.ts",
-        "tsConfig": "libs/utils/tsconfig.lib.json",
-        "assets": ["libs/utils/*.md"]
+        "outputPath": "dist/libs/js-utils",
+        "main": "libs/js-utils/src/index.ts",
+        "tsConfig": "libs/js-utils/tsconfig.lib.json",
+        "assets": ["libs/js-utils/*.md"]
       }
     },
     "nx-release-publish": {
@@ -23,10 +30,9 @@
   "tags": [],
   "release": {
     "version": {
-      "generatorOptions": {
-        "packageRoot": "dist/{projectRoot}",
-        "currentVersionResolver": "git-tag"
-      }
+      "currentVersionResolver": "git-tag",
+      "preserveLocalDependencyProtocols": false,
+      "manifestRootsToUpdate": ["dist/{projectRoot}"]
     }
   }
 }
