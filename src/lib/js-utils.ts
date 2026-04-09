@@ -7210,10 +7210,11 @@ export function getAdjacentList(dictionaryKeys) {
  * @tags #number #utility #hex #formatting
  * @see https://stackoverflow.com/a/10937446
  */
-function fixedHex(number, length) {
+export function fixedHex(number, length) {
   var str = number.toString(16).toUpperCase();
-  while (str.length < length)
+  while (str.length < length){
     str = "0" + str;
+  }
   return str;
 }
 
@@ -7240,20 +7241,39 @@ export function unicodeLiteral(str) {
 }
 
 /**
- * Converts a string to a Unicode-escaped string, replacing non-ASCII characters with their `\uXXXX` representations.
+ * Converts a string to a Unicode-escaped string, replacing non-ASCII characters with their `\uXXXX` representations. 
+ * Support for astral symbols and exceptions
  * 
  * @param {string} str - The input string to convert.
+ * @param {string[]} excludeChars - characters that don't need to be escaped
  * @returns {string} The Unicode-escaped string.
  * @tags #string #utility #unicode #formatting
  */
-export function toUnicode(str) {
-  return str.split('').map(function (value, index, array) {
-    var temp = value.charCodeAt(0).toString(16).padStart(4, '0');
-    if (temp.length > 2) {
-      return '\\u' + temp;
+export function toUnicode(str, excludeChars = []) {
+  const excludeSet = new Set(excludeChars);
+  let result = '';
+
+  for (const ch of str) {
+    if (excludeSet.has(ch)) {
+      result += ch;
+      continue;
     }
-    return value;
-  }).join('');
+
+    const code = ch.codePointAt(0);
+
+    if (code <= 0xFFFF) {
+      result += '\\u' + fixedHex(code, 4);
+    } else {
+      // surrogate pair
+      const high = Math.floor((code - 0x10000) / 0x400) + 0xD800;
+      const low = ((code - 0x10000) % 0x400) + 0xDC00;
+
+      result += '\\u' + fixedHex(high, 4);
+      result += '\\u' + fixedHex(low, 4);
+    }
+  }
+
+  return result;
 }
 
 /**
