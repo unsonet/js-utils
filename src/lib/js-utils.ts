@@ -3348,7 +3348,7 @@ export function isAtParentBottom(el: HTMLElement, parent: HTMLElement, esp?): bo
   const parentRect = parent.getBoundingClientRect();
 
   // небольшая погрешность из-за дробных пикселей
-  
+
 
   return Math.abs(elRect.bottom - parentRect.bottom) < EPS;
 }
@@ -7212,7 +7212,7 @@ export function getAdjacentList(dictionaryKeys) {
  */
 export function fixedHex(number, length) {
   var str = number.toString(16).toUpperCase();
-  while (str.length < length){
+  while (str.length < length) {
     str = "0" + str;
   }
   return str;
@@ -9543,4 +9543,24 @@ export function fitTextSmart(input, options?) {
     accepted: input,
     rest: ''
   };
+}
+
+/**
+ * Retrieves the localized value from an object based on the specified locale property.
+ * Falls back to the first available key if the specified locale is missing.
+ * @param {UnsonetLocalStringObject} object - The object containing localized strings.
+ * @param {string} localProp - The locale property to retrieve (e.g., 'en', 'ru').
+ * @returns {string} The localized string or an empty string if not found.
+ */
+export function getLocalObjectValue(object, localProp) {
+  let value;
+  if (typeof object == 'object') {
+    let keys = Object.keys(object);
+    let length = keys.length;
+    value = length > 1 ? (object[localProp] || object?.[keys[0]] || '') : (object?.[keys[0]] || '');
+  } else if (typeof object == 'string') {
+    value = object;
+  }
+
+  return value;
 }
