@@ -6,7 +6,9 @@
   "targets": {
     "build": {
       "executor": "@nx/js:tsc",
-      "outputs": ["{options.outputPath}"],
+      "outputs": [
+        "{options.outputPath}"
+      ],
       "dependsOn": [
         "^build",
         {
@@ -18,7 +20,22 @@
         "outputPath": "dist/libs/js-utils",
         "main": "libs/js-utils/src/index.ts",
         "tsConfig": "libs/js-utils/tsconfig.lib.json",
-        "assets": ["libs/js-utils/*.md"]
+        "assets": [
+          "libs/js-utils/*.md"
+        ]
+      }
+    },
+    "build-esbuild": {
+      "executor": "@nx/esbuild:esbuild",
+      "options": {
+        "outputPath": "dist/libs/js-utils",
+        "main": "libs/js-utils/src/index.ts",
+        "tsConfig": "libs/js-utils/tsconfig.lib.json",
+        "format": [
+          "cjs"
+        ],
+        "bundle": true,
+        "external": []
       }
     },
     "nx-release-publish": {
@@ -32,7 +49,9 @@
     "version": {
       "currentVersionResolver": "git-tag",
       "preserveLocalDependencyProtocols": false,
-      "manifestRootsToUpdate": ["dist/{projectRoot}"]
+      "manifestRootsToUpdate": [
+        "dist/{projectRoot}"
+      ]
     }
   }
 }

@@ -6,7 +6,7 @@ import * as acorn from 'acorn';
 // import parsePhone from '../../../assets/js/lib/phoneparser.js';
 // import { base64Utf8Module, ImageSSIM, parsePhone } from '../../../../../../../libs/external-libs/src/index';
 import { base64Utf8Module, ImageSSIM, parsePhone } from '@unsonet/external-libs';
-import { UnsonetDataGrid } from '@unsonet/unsonet-types';
+//import type { UnsonetDataGrid } from '@unsonet/unsonet-types'; //!BUG: Could not execute command because the task graph has a circular dependency
 // import * as base64Utf8Module from '../../../../../../../libs/external-libs/src/lib/base64-utf8.module.js';
 // import * as ImageSSIM from '../../../../../../../libs/external-libs/src/lib/image-ssim.js';
 // import parsePhone from '../../../../../../../libs/external-libs/src/lib/phoneparser.js';
@@ -724,7 +724,7 @@ export function checkConditions(
     rules: Array<{ property: string; op: string; value?: any; required?: boolean }>;
     satisfy?: 'ALL' | 'ANY';
     log?: (msg: string) => void;
-  },
+  }, //QuestionConditions
   reference: any
 ): boolean | null {
   if (!settings || !Array.isArray(settings.rules)) return null;
@@ -894,34 +894,138 @@ export function getFileExtension(fileName) {
  * If the extension is not recognized, it falls back to `application/octet-stream`.
  *
  * @param filePath - The full or relative path to the file (e.g., `"assets/image.webp"`, `"index.html"`).
- * @returns The MIME type string corresponding to the file extension.
- *
+ * @param preferredCharset - Optional preferred charset (e.g., `"utf-8"`). Applied only if supported by the MIME type.
+ * @returns The MIME type string corresponding to the file extension, optionally including charset.
+ * @altname guessContentType
  * @example
  * ```ts
- * guessContentType("index.html"); // "text/html; charset=utf-8"
- * guessContentType("image.webp"); // "image/webp"
- * guessContentType("unknown.xyz"); // "application/octet-stream"
+ * getMime("index.html", "utf-8"); // "text/html; charset=utf-8"
+ * getMime("data.json", "utf-8");  // "application/json; charset=utf-8"
+ * getMime("image.webp", "utf-8"); // "image/webp"
+ * getMime("unknown.xyz");         // "application/octet-stream"
  * ```
  */
-export function guessContentType(filePath: string): string {
-  const MimeTypes = {
-    "json": "application/json; charset=utf-8",
-    "js": "application/javascript; charset=utf-8",
-    "ts": "application/typescript; charset=utf-8",
-    "html": "text/html; charset=utf-8",
-    "css": "text/css; charset=utf-8",
-    "txt": "text/plain; charset=utf-8",
-    "png": "image/png",
-    "jpg": "image/jpeg",
-    "jpeg": "image/jpeg",
-    "gif": "image/gif",
-    "svg": "image/svg+xml",
-    "webp": "image/webp",
-    "ico": "image/x-icon",
-    "avif": "image/avif"
-  } as const;
-  const ext = getFileExtension(filePath).toLowerCase();
-  return MimeTypes[ext as keyof typeof MimeTypes] || "application/octet-stream";
+export function getMime(filePath: string, preferredCharset?: string): string {
+  const SUPPORTED_CHARSETS = new Set([
+    "utf-8",
+    "utf8",
+    "utf-16",
+    "utf-16le",
+    "utf-16be",
+    "iso-8859-1",
+    "latin1",
+    "windows-1251",
+    "windows-1252",
+    "ascii",
+  ]);
+
+  function normalizeCharset(charset: string): string | null {
+    const normalized = charset.trim().toLowerCase();
+    if (!normalized) return null;
+
+    return SUPPORTED_CHARSETS.has(normalized) ? normalized : null;
+  }
+
+  type MimeTypeEntry = {
+    mime: string;
+    supportsCharset: boolean;
+  };
+
+  const MIME_TYPES = {
+    // text / structured text
+    json: { mime: "application/json", supportsCharset: true },
+    js: { mime: "application/javascript", supportsCharset: true },
+    mjs: { mime: "application/javascript", supportsCharset: true },
+    cjs: { mime: "application/javascript", supportsCharset: true },
+    ts: { mime: "application/typescript", supportsCharset: true },
+    html: { mime: "text/html", supportsCharset: true },
+    htm: { mime: "text/html", supportsCharset: true },
+    css: { mime: "text/css", supportsCharset: true },
+    txt: { mime: "text/plain", supportsCharset: true },
+    csv: { mime: "text/csv", supportsCharset: true },
+    md: { mime: "text/markdown", supportsCharset: true },
+    markdown: { mime: "text/markdown", supportsCharset: true },
+    xml: { mime: "application/xml", supportsCharset: true },
+    svg: { mime: "image/svg+xml", supportsCharset: true },
+    yaml: { mime: "application/yaml", supportsCharset: true },
+    yml: { mime: "application/yaml", supportsCharset: true },
+
+    // images
+    png: { mime: "image/png", supportsCharset: false },
+    jpg: { mime: "image/jpeg", supportsCharset: false },
+    jpeg: { mime: "image/jpeg", supportsCharset: false },
+    gif: { mime: "image/gif", supportsCharset: false },
+    webp: { mime: "image/webp", supportsCharset: false },
+    avif: { mime: "image/avif", supportsCharset: false },
+    ico: { mime: "image/x-icon", supportsCharset: false },
+    bmp: { mime: "image/bmp", supportsCharset: false },
+    tif: { mime: "image/tiff", supportsCharset: false },
+    tiff: { mime: "image/tiff", supportsCharset: false },
+
+    // fonts
+    woff: { mime: "font/woff", supportsCharset: false },
+    woff2: { mime: "font/woff2", supportsCharset: false },
+    ttf: { mime: "font/ttf", supportsCharset: false },
+    otf: { mime: "font/otf", supportsCharset: false },
+    eot: { mime: "application/vnd.ms-fontobject", supportsCharset: false },
+
+    // documents / office
+    pdf: { mime: "application/pdf", supportsCharset: false },
+    rtf: { mime: "application/rtf", supportsCharset: true },
+    doc: { mime: "application/msword", supportsCharset: false },
+    docx: {
+      mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      supportsCharset: false,
+    },
+    xls: { mime: "application/vnd.ms-excel", supportsCharset: false },
+    xlsx: {
+      mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      supportsCharset: false,
+    },
+    ppt: { mime: "application/vnd.ms-powerpoint", supportsCharset: false },
+    pptx: {
+      mime: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      supportsCharset: false,
+    },
+
+    // archives / binary
+    zip: { mime: "application/zip", supportsCharset: false },
+    gz: { mime: "application/gzip", supportsCharset: false },
+    gzip: { mime: "application/gzip", supportsCharset: false },
+    rar: { mime: "application/vnd.rar", supportsCharset: false },
+    "7z": { mime: "application/x-7z-compressed", supportsCharset: false },
+    tar: { mime: "application/x-tar", supportsCharset: false },
+
+    // audio / video
+    mp3: { mime: "audio/mpeg", supportsCharset: false },
+    wav: { mime: "audio/wav", supportsCharset: false },
+    ogg: { mime: "audio/ogg", supportsCharset: false },
+    mp4: { mime: "video/mp4", supportsCharset: false },
+    webm: { mime: "video/webm", supportsCharset: false },
+    mov: { mime: "video/quicktime", supportsCharset: false },
+
+    // web / app
+    wasm: { mime: "application/wasm", supportsCharset: false },
+    map: { mime: "application/json", supportsCharset: true },
+  } as const satisfies Record<string, MimeTypeEntry>;
+
+  type MimeTypeKey = keyof typeof MIME_TYPES;
+
+  const ext = getFileExtension(filePath).toLowerCase() as MimeTypeKey;
+  const entry = MIME_TYPES[ext];
+
+  if (!entry) {
+    return "application/octet-stream";
+  }
+
+  if (preferredCharset && entry.supportsCharset) {
+    const charset = normalizeCharset(preferredCharset);
+    if (charset) {
+      return `${entry.mime}; charset=${charset}`;
+    }
+  }
+
+  return entry.mime;
 }
 
 
@@ -6428,7 +6532,7 @@ export function redirectTo(path) {
  * Supports custom CSS classes for grid, rows, cells, and items.
  */
 export function renderFlexGrid(
-  data: UnsonetDataGrid,
+  data: Array<Array<Array<any>>>,//UnsonetDataGrid
   options?: {
     gridClass?: string;
     rowClass?: string;

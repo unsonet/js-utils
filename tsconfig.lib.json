@@ -4,7 +4,8 @@
     "outDir": "../../dist/out-tsc",
     "declaration": true,
     "types": ["node"],
-    "module": "CommonJS",
+    "module": "esnext",
+    "moduleResolution": "bundler",
     "target": "ES2020",
     "strict": false
   },
