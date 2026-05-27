@@ -4779,6 +4779,7 @@ export function objectToArray(object, idProperty?) {
  * @param {Array} arr - The array to unwrap.
  * @returns {*} The single element if the array contains only one element, otherwise the original array.
  * @tags #array #converter
+ * @altname spreadSingletonArray
  */
 export function unwrapSingletonArray(arr) {
   if (Array.isArray(arr) && arr.length === 1) {
@@ -4910,6 +4911,30 @@ export function sortArrayOfObjects(array, rules, sortFunction?) {
 
       if (result !== 0) {
         return result;
+      }
+    }
+    return 0;
+  });
+}
+
+
+/**
+ * Sorts an array of objects based on multiple criteria.
+ *
+ * @param {Array<Object>} data - The array of objects to sort.
+ * @param {Array<Object>} criteria - The array of criteria objects, each containing a field and order.
+ * @param {string} criteria[].field - The field to sort by.
+ * @param {string} criteria[].order - The sort order, either 'asc' for ascending or 'desc' for descending.
+ * @return {Array<Object>} - The sorted array of objects.
+ * @tags #array #sorting
+ * @deprecated use sortArrayOfObjects
+ */
+export function multiSort(data, criteria) {
+  return data.sort((a, b) => {
+    for (let i = 0; i < criteria.length; i++) {
+      const { field, order } = criteria[i];
+      if (a[field] !== b[field]) {
+        return order === 'asc' ? (a[field] > b[field] ? 1 : -1) : (a[field] < b[field] ? 1 : -1);
       }
     }
     return 0;
@@ -8408,28 +8433,6 @@ export function hasEOL(str) {
   return /\r\n|\n/.test(str);
 }
 
-/**
- * Sorts an array of objects based on multiple criteria.
- *
- * @param {Array<Object>} data - The array of objects to sort.
- * @param {Array<Object>} criteria - The array of criteria objects, each containing a field and order.
- * @param {string} criteria[].field - The field to sort by.
- * @param {string} criteria[].order - The sort order, either 'asc' for ascending or 'desc' for descending.
- * @return {Array<Object>} - The sorted array of objects.
- * @tags #array #sorting
- * @deprecated use sortArrayOfObjects
- */
-export function multiSort(data, criteria) {
-  return data.sort((a, b) => {
-    for (let i = 0; i < criteria.length; i++) {
-      const { field, order } = criteria[i];
-      if (a[field] !== b[field]) {
-        return order === 'asc' ? (a[field] > b[field] ? 1 : -1) : (a[field] < b[field] ? 1 : -1);
-      }
-    }
-    return 0;
-  });
-}
 
 /**
  * Calculates the fractional difference between two values.
@@ -9667,4 +9670,110 @@ export function getLocalObjectValue(object, localProp) {
   }
 
   return value;
+}
+
+/**
+ * JSON.stringify with custom per-path formatters.
+ * @param {Object} obj
+ * @param {Object<string, Function>} [formatters={}]
+ * @param {number} [space=2]
+ * @returns {string}
+ */
+export function stringifyCustom(obj, formatters = {}, space) {
+    space = space == undefined ? 2 : space;
+    function get(obj, key) {
+        if (key.includes('.')) {
+            return deepFind(obj, key);
+        }
+
+        return obj[key];
+    }
+
+    function createMarker(id) {
+        return `__FORMATTER_${id}__`;
+    }
+
+    const formatterEntries = Object.entries(formatters)
+        .sort((a, b) =>
+            b[0].split('.').length -
+            a[0].split('.').length
+        );
+
+    const markers = new Map();
+
+    let markerId = 0;
+
+    function cloneWithMarkers(current, currentPath = '') {
+
+        if (Array.isArray(current)) {
+            return current.map((item, index) =>
+                cloneWithMarkers(
+                    item,
+                    currentPath
+                        ? `${currentPath}.${index}`
+                        : `${index}`
+                )
+            );
+        }
+
+        if (
+            current &&
+            typeof current === 'object'
+        ) {
+
+            const result = {};
+
+            for (const key of Object.keys(current)) {
+
+                const fullPath = currentPath
+                    ? `${currentPath}.${key}`
+                    : key;
+
+                const formatterEntry = formatterEntries.find(
+                    ([path]) => path === fullPath
+                );
+
+                if (formatterEntry) {
+
+                    /** @type {Function} */
+                    const formatterFn = formatterEntry?.[1];
+
+                    const marker = createMarker(markerId++);
+
+                    markers.set(
+                        marker,
+                        formatterFn?.['call'](this,
+                            get(obj, fullPath),
+                            fullPath,
+                            obj
+                        )
+                    );
+
+                    result[key] = marker;
+
+                } else {
+                    result[key] = cloneWithMarkers(
+                        current[key],
+                        fullPath
+                    );
+                }
+            }
+
+            return result;
+        }
+
+        return current;
+    }
+
+    const prepared = cloneWithMarkers(obj);
+
+    return JSON.stringify(prepared, null, space)
+        .replace(
+            /"__FORMATTER_\d+__"/g,
+            (match) => {
+                const marker = match.slice(1, -1);
+
+                return markers.get(marker);
+            }
+        );
 }
