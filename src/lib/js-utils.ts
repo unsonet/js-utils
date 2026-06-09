@@ -58,7 +58,7 @@ export var regExpPatterns = (() => {
   //https://stackoverflow.com/questions/5717093/check-if-a-javascript-string-is-a-url
   ///^(?<href>(?:(?<scheme>(?:view-source|blob):))?(?<protocol>(?:http|https|ftp|ftps|file|urn|chrome|browser|chrome-extension|moz-extension|chrome-error|devtools|view-source|about|javascript|data|postgres|mysql|ws|wss|[A-Za-z][A-Za-z0-9+.-]*):)(?:(?:(?:\/\/)?(?:(?<username>(?:[A-Za-z0-9._~!$&'()*+,;=\-]|%[0-9A-Fa-f]{2})*)(?::(?<password>(?:[A-Za-z0-9._~!$&'()*+,;=:\-]|%[0-9A-Fa-f]{2})*))?@)?(?<host>(?<hostname>(?<=\/\/|@)(?:(?<ip>\d{1,3}(?:\.\d{1,3}){3}(?![.\d]))|(?![\p{N}.]{1,3}\.)(?:(?:(?<subdomains>(?:[\p{L}\p{N}\p{S}][\p{L}\p{N}\p{S}\p{M}-]*[\p{L}\p{N}\p{S}\p{M}]?\.)*)?(?<secondLevelDomain>[\p{L}\p{N}\p{S}](?:[\p{L}\p{N}\p{S}\p{M}-]*[\p{L}\p{N}\p{S}\p{M}])?)\.(?<topLevelDomain>[\p{L}\p{N}\p{S}](?:[\p{L}\p{N}\p{S}\p{M}-]*[\p{L}\p{N}\p{S}\p{M}])?))|(?:[\p{L}\p{N}\p{S}\p{M}-]*[\p{L}\p{N}\p{S}\p{M}])))(?=[^\p{L}\p{N}_]|$))?(?::(?<port>\d+))?)?(?<!\/\/|@|-|\.)(?<pathname>(?!\/\/|-|\.)(?:\/{0,}[-,\/%_.~+();\p{L}\p{N}\p{S}\p{M}\p{Pc}\p{Pd} ]+)+)?(?:(?<search>\?[;&\p{L}\d%_.~+=\-\/ ]*))?(?:(?<hash>#[\p{L}\d_\-\?&=]*))?)))$/umg;
   const parseLanguageTag = /^(?<language>[a-z]{2,3}|mis_[a-z0-9]+)(?:-(?<script>[A-Z][a-z]{3}))?(?:-(?<region>[A-Z]{2}|\d{3}))?(?:-(?<variants>[a-z0-9]+(?:-[a-z0-9]+)*)*)?$/gmi; //IETF BCP 47
-  const parseUrl = /^(?<href>(?:(?<scheme>(?:view-source|blob):))?(?<protocol>(?:http|https|ftp|ftps|file|urn|chrome|browser|chrome-extension|moz-extension|chrome-error|devtools|view-source|about|javascript|data|postgres|mysql|ws|wss|[A-Za-z][A-Za-z0-9+.-]*)(?<!localhost\b):(?=[^\s]+))(?:(?:(?:\/\/)?(?<auth>(?<username>(?:[A-Za-z0-9._~!$&'()*+,;=\-]|%[0-9A-Fa-f]{2})*)(?::(?<password>(?:[A-Za-z0-9._~!$&'()*+,;=:\-]|%[0-9A-Fa-f]{2})*))?@)?(?<host>(?<hostname>(?<=\/\/|@)(?:(?<ip>\d{1,3}(?:\.\d{1,3}){3}(?![.\d]))|(?![\p{N}.]{1,3}\.)(?:(?:(?<subdomains>(?:[\p{L}\p{N}\p{S}][\p{L}\p{N}\p{S}\p{M}-]*[\p{L}\p{N}\p{S}\p{M}]?\.)*)?(?<secondLevelDomain>[\p{L}\p{N}\p{S}](?:[\p{L}\p{N}\p{S}\p{M}-]*[\p{L}\p{N}\p{S}\p{M}])?)\.(?<topLevelDomain>(?=[\p{L}\p{N}\p{S}\p{M}-]*\p{L})[\p{L}\p{N}\p{S}](?:[\p{L}\p{N}\p{S}\p{M}-]*[\p{L}\p{N}\p{S}\p{M}])?))|(?:[\p{L}\p{N}\p{S}\p{M}-]*[\p{L}\p{N}\p{S}\p{M}])))(?=[^\p{L}\p{N}_]|$))?(?::(?<port>\d+))?)?(?<!\/\/\b|@|-|\.)(?<pathname>(?!\/\/|-|\.)(?:\/{0,}[-,\/%_.~+()'"&@:;\p{L}\p{N}\p{S}\p{M}\p{Pc}\p{Pd} ]+)+)?(?:(?<search>\?[:;&\p{L}\d%_.,~+=\-\/ ]*))?(?:(?<hash>#[\p{L}\d_\-\?&=]*))?)))$/gum;
+  const parseUrl = /^(?<href>(?:(?<scheme>(?:view-source|blob):))?(?<protocol>(?:http|https|ftp|ftps|file|urn|chrome|browser|chrome-extension|moz-extension|chrome-error|devtools|view-source|about|javascript|data|postgres|mysql|ws|wss|[A-Za-z][A-Za-z0-9+.\-]*)(?<!localhost\b):(?=[^\s]+))(?:(?:(?:\/\/)?(?<auth>(?<username>(?:[A-Za-z0-9._~!$&'()*+,;=\-]|%[0-9A-Fa-f]{2})*)(?::(?<password>(?:[A-Za-z0-9._~!$&'()*+,;=:\-]|%[0-9A-Fa-f]{2})*))?@)?(?<host>(?<hostname>(?<=\/\/|@)(?:(?<ip>\d{1,3}(?:\.\d{1,3}){3}(?![.\d]))|(?![\p{N}.]{1,3}\.)(?:(?:(?<subdomains>(?:[\p{L}\p{N}\p{S}][\p{L}\p{N}\p{S}\p{M}\-]*[\p{L}\p{N}\p{S}\p{M}]?\.)*)?(?<secondLevelDomain>[\p{L}\p{N}\p{S}](?:[\p{L}\p{N}\p{S}\p{M}\-]*[\p{L}\p{N}\p{S}\p{M}])?)\.(?<topLevelDomain>(?=[\p{L}\p{N}\p{S}\p{M}\-]*\p{L})[\p{L}\p{N}\p{S}](?:[\p{L}\p{N}\p{S}\p{M}\-]*[\p{L}\p{N}\p{S}\p{M}])?))|(?:[\p{L}\p{N}\p{S}\p{M}\-]*[\p{L}\p{N}\p{S}\p{M}])))(?=[^\p{L}\p{N}_]|$))?(?::(?<port>\d+))?)?(?<!\/\/\b|@|-|\.)(?<pathname>(?!\/\/|-|\.)(?:\/{0,}[-,\/%_.~+()'"&@:;\p{L}\p{N}\p{S}\p{M}\p{Pc}\p{Pd} ]+)+)?(?:(?<search>\?[:;&\p{L}\d%_.,~+=\-\/ ()]*))?(?:(?<hash>#[\p{L}\d_\-\?&=]*))?)))$/gum;
   /*
   tele-gram://www.example.com/
 ftp://example.com/file/y
@@ -85,6 +85,13 @@ hh7-dttp://132.34.33.145/123?пвапв=ываы#gsdfs
   //const sentence = /(?:(?:\S)+(?=\s|\b|\W|$)[^.!?\r\n]+[.!?]*)/gim; //deprecated
   const sentenceSplitter = /(?<!\b(?:[\w\d])[!¡?¿؟।।ฯ։።\.·…;។།ໃ་᠆᠉⸮⸘⸴፧᜵᜶ᝪᝫ᠃᠉᠊᠋᠌᠍᠆᠊᠋᠌᠍᠆᠊᠋᠌᠍⹀⹁⹂⹃⹄⹅⹆⹇⹈⹉⹊⹋⹌⹍⹎⹏⹐⹑⹒⹓⹔⹕⹖⹗⹘⹙⹚⹛⹜⹝⹞⹟⹠⹡⹢⹣⹤⹥⹦⹧⹨⹩⹪⹫⹬⹭⹮⹯⹰⹱⹲⹳⹴⹵⹶⹷⹸⹹⹺⹻⹼⹽⹾⹿;\n\r]\b)(?<!^[[!¡?¿؟।।ฯ։።\.·…;។།ໃ་᠆᠉⸮⸘⸴፧᜵᜶ᝪᝫ᠃᠉᠊᠋᠌᠍᠆᠊᠋᠌᠍᠆᠊᠋᠌᠍⹀⹁⹂⹃⹄⹅⹆⹇⹈⹉⹊⹋⹌⹍⹎⹏⹐⹑⹒⹓⹔⹕⹖⹗⹘⹙⹚⹛⹜⹝⹞⹟⹠⹡⹢⹣⹤⹥⹦⹧⹨⹩⹪⹫⹬⹭⹮⹯⹰⹱⹲⹳⹴⹵⹶⹷⹸⹹⹺⹻⹼⹽⹾⹿;\n\r])(?<=[!¡?¿؟।।ฯ։።\.·…;។།ໃ་᠆᠉⸮⸘⸴፧᜵᜶ᝪᝫ᠃᠉᠊᠋᠌᠍᠆᠊᠋᠌᠍᠆᠊᠋᠌᠍⹀⹁⹂⹃⹄⹅⹆⹇⹈⹉⹊⹋⹌⹍⹎⹏⹐⹑⹒⹓⹔⹕⹖⹗⹘⹙⹚⹛⹜⹝⹞⹟⹠⹡⹢⹣⹤⹥⹦⹧⹨⹩⹪⹫⹬⹭⹮⹯⹰⹱⹲⹳⹴⹵⹶⹷⹸⹹⹺⹻⹼⹽⹾⹿;\n\r](?=\s))/gi
   const baseHtmlElement = /<\s*base\s*href\s*=\s*"[^"]*"\s*[\/]*\s*>/gmi;
+
+  const bracketsContent = /\([^()]*\)|\[[^\[\]]*\]|\{[^{}]*\}/gm;
+  const sentenceDashes = /(?!(?<=\p{L})[\-–](?=\p{L}))[\-–]/gum;
+  const sentenceQuotationMarks = /(?!(?<=\p{L})['’"`](?=\p{L}))['’"`]/gum;
+  const sentenceGarbage = /(?!(?<=\p{L})['’"`\-–](?=\p{L}))[^\p{L}\d&.,Λ ]/gum;
+  const extraSpaces = /(\s)+/g;
+
   return {
     htmlTags, firstChar, jsonParser, allScripts, combiningDiacritics, cyrillicCombiningMarks, nonAscii,
     arrayExtractor, arrayParser, escapeString, parseArrayWithEscapedComma, pseudoSelectors,
@@ -93,37 +100,250 @@ hh7-dttp://132.34.33.145/123?пвапв=ываы#gsdfs
     parseUrl, parseLanguageTag,
     phone, color, text, hashes, sentenceSplitter,
     stringifyJsObject, punctuations, numbers, baseHtmlElement,
-    cryptoHashes8, cryptoHashes16, cryptoHashes32
+    cryptoHashes8, cryptoHashes16, cryptoHashes32,
+    bracketsContent, sentenceDashes, sentenceQuotationMarks, sentenceGarbage, extraSpaces
   };
 })();
 
 /**
- * Converts a file to a Base64-encoded string.
- * 
- * @param {File} file - The file to be converted.
- * @param {boolean} [urlEncoded=false] - Whether to include the full data URL (with MIME type).
- * @param {boolean} [withHeader=false] - Whether to include the Base64 header in the result.
- * @return {Promise<string>} - A promise that resolves to the Base64-encoded string.
- * @tags #converter #string #web
+ * Splits a Data URL into header and base64 body parts.
+ *
+ * Example:
+ * data:image/png;base64,AAAA
+ * → header: "data:image/png;base64,"
+ * → body: "AAAA"
+ *
+ * @param value - Data URL or raw base64 string.
+ * @returns Parsed structure with header, body and detection flag.
  */
-export function toBase64(file, urlEncoded = false, withHeader = false) {
+export function splitDataUrl(value: string) {
+  const commaIndex = value.indexOf(',');
+
+  return {
+    header: commaIndex >= 0 ? value.slice(0, commaIndex + 1) : '',
+    body: commaIndex >= 0 ? value.slice(commaIndex + 1) : value,
+    isDataUrl: value.startsWith('data:') && commaIndex >= 0,
+  };
+}
+
+/**
+ * Converts a file to Base64.
+ *
+ * @param file - The file to convert.
+ * @param options - Output format options.
+ * @param options.urlEncoded - Return full data URL instead of raw Base64.
+ * @param options.withHeader - Include 'data:./.;base64,' prefix when returning raw Base64.
+ */
+export function toBase64(
+  input: File | Blob | string,
+  options: {
+  urlEncoded?: boolean;
+  withHeader?: boolean;
+} = {}
+): Promise<string> {
+  const { urlEncoded = false, withHeader = false } = options || {};
+
+  const resolveValue = (value: string) => {
+    if (urlEncoded) return value;
+
+    const { header, body } = splitDataUrl(value);
+    return withHeader ? header + body : body;
+  };
+
+  if (typeof input === 'string') {
+    return Promise.resolve(resolveValue(input));
+  }
+
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.readAsDataURL(file);
+
+    reader.onerror = () => reject(reader.error ?? new Error('FileReader error'));
+    reader.onabort = () => reject(new Error('File reading was aborted'));
+
     reader.onload = () => {
-      let header = reader.result.toString().match(/^data:(.*,)?/)?.[0];
-      let encoded = reader.result.toString().replace(/^data:(.*,)?/, '');
-      if ((encoded.length % 4) > 0) {
-        encoded += '='.repeat(4 - (encoded.length % 4));
-      }
-
-      let data = urlEncoded ? reader.result : encoded
-
-      return resolve(withHeader ? header + data : data);
+      resolve(resolveValue(String(reader.result ?? '')));
     };
-    reader.onerror = error => reject(error);
-  })
-};
+
+    reader.readAsDataURL(input);
+  });
+}
+
+/**
+ * Parses Base64 or Data URL into structured parts.
+ *
+ * @param input - Base64 string or Data URL.
+ * @returns Parsed MIME type, base64 body, and header (if present).
+ */
+export function parseBase64(input: string) {
+  const { header, body, isDataUrl } = splitDataUrl(input);
+
+  if (!isDataUrl) {
+    return {
+      mimeType: 'application/octet-stream',
+      base64: input,
+      header: '',
+    };
+  }
+
+  const mimeEnd = header.indexOf(';');
+
+  return {
+    mimeType:
+      mimeEnd >= 0
+        ? header.slice(5, mimeEnd) || 'application/octet-stream'
+        : 'application/octet-stream',
+    base64: body,
+    header,
+  };
+}
+
+/**
+ * Converts a Base64 string into a binary Uint8Array.
+ *
+ * @param base64 - Raw Base64 string (without data URL prefix).
+ * @returns Binary representation as Uint8Array.
+ */
+export function base64ToBytes(base64: string): Uint8Array<ArrayBuffer> {
+  const binary = atob(base64);
+  const buffer = new ArrayBuffer(binary.length);
+  const bytes = new Uint8Array(buffer);
+
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+
+  return bytes;
+}
+
+/**
+ * Converts an ArrayBuffer into a Base64-encoded string.
+ *
+ * Works in both environments:
+ * - Browser (uses `btoa`)
+ * - Node.js (uses `Buffer`)
+ *
+ * @param buffer - Binary data as ArrayBuffer (e.g. crypto output)
+ * @returns Base64-encoded string representation of the input buffer
+ *
+ * @example
+ * const signature = arrayBufferToBase64(signatureBuffer);
+ */
+export function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  // Node.js
+  if (typeof Buffer !== "undefined") {
+    return Buffer.from(buffer).toString("base64");
+  }
+
+  // Browser
+  let binary = "";
+  const bytes = new Uint8Array(buffer);
+
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+
+  return btoa(binary);
+}
+
+/**
+ * Splits a Base64 string into binary chunks (Uint8Array parts) suitable for Blob/File construction.
+ *
+ * This function is used to avoid large memory allocations when converting
+ * big Base64 strings by processing them in slices.
+ *
+ * If `sliceSize` is 0 or negative, the entire Base64 string is decoded in one pass.
+ *
+ * @param base64 - Raw Base64 string (without Data URL prefix).
+ * @param sliceSize - Chunk size for decoding (in characters). Default is 512.
+ * @returns Array of Uint8Array chunks representing binary data.
+ */
+export function base64ToBlobParts(
+  base64: string,
+  sliceSize = 512
+): Uint8Array<ArrayBuffer>[] {
+  const binary = atob(base64);
+
+  if (!sliceSize || sliceSize <= 0) {
+    return [base64ToBytes(base64)];
+  }
+
+  const parts: Uint8Array<ArrayBuffer>[] = [];
+
+  for (let offset = 0; offset < binary.length; offset += sliceSize) {
+    const slice = binary.slice(offset, offset + sliceSize);
+    const buffer = new ArrayBuffer(slice.length);
+    const bytes = new Uint8Array(buffer);
+
+    for (let i = 0; i < slice.length; i++) {
+      bytes[i] = slice.charCodeAt(i);
+    }
+
+    parts.push(bytes);
+  }
+
+  return parts;
+}
+
+/**
+ * Converts Base64 or Data URL into Blob, File, Base64 string, or Data URL.
+ *
+ * Supported inputs:
+ * - Raw Base64 string
+ * - Data URL (data:./.;base64,...)
+ *
+ * @param input - Base64 or Data URL string.
+ * @param options - Conversion options.
+ * @param options.output - Output format:
+ *   - 'blob' (default)
+ *   - 'file'
+ *   - 'base64'
+ *   - 'dataUrl'
+ * @param options.mimeType - Override detected MIME type.
+ * @param options.fileName - File name when output is 'file'.
+ * @param options.sliceSize - Optional chunk size for Blob/File decoding.
+ *
+ * @returns Converted result in requested format.
+ */
+export function fromBase64(
+  input: string,
+  options: {
+  output?: 'blob' | 'file' | 'base64' | 'dataUrl';
+  mimeType?: string;
+  fileName?: string;
+  sliceSize?:number,
+} = {} 
+): string | Blob | File {
+  const {
+    output = 'blob',
+    mimeType: overrideMime,
+    fileName = 'file',
+  sliceSize = 0,
+  } = options;
+
+  const parsed = parseBase64(input);
+  const mime = overrideMime || parsed.mimeType;
+
+  switch (output) {
+    case 'dataUrl':
+      return (parsed.header || `data:${mime};base64,`) + parsed.base64;
+
+    case 'base64':
+      return parsed.base64;
+
+    case 'file':
+      return new File(
+        base64ToBlobParts(parsed.base64, sliceSize),
+        fileName,
+        { type: mime }
+      );
+
+    case 'blob':
+    default:
+      return new Blob(base64ToBlobParts(parsed.base64, sliceSize), {
+        type: mime,
+      });
+  }
+}
 
 /**
  * Converts a Blob object to a Base64-encoded string.
@@ -131,6 +351,7 @@ export function toBase64(file, urlEncoded = false, withHeader = false) {
  * @param {Blob} blob - The Blob object to be converted.
  * @return {Promise<string>} - A promise that resolves to the Base64-encoded string.
  * @tags #converter #string #web
+ * @deprecated use toBase64(blob)
  */
 export function blobToBase64(blob) {
   return new Promise((resolve, _) => {
@@ -148,32 +369,19 @@ export function blobToBase64(blob) {
  * @param {number} [sliceSize=512] - The size of each slice when processing the Base64 string.
  * @return {Blob} - The resulting Blob object.
  * @tags #converter #string #web
+ * @deprecated use fromBase64(data, { output: 'blob' })
  */
-export function base64toBlob(b64Data, contentType?, sliceSize = 512) {
+export function base64toBlob(
+  b64Data: string,
+  contentType?: string,
+  sliceSize = 512
+): Blob {
+  const parsed = parseBase64(b64Data);
+  const mimeType = contentType || parsed.mimeType;
 
-  // Split into two parts
-  const parts = b64Data.split(';base64,');
-
-  // Hold the content type
-  contentType = contentType || parts[0].split(':')[1];
-
-  const byteCharacters = atob(parts[1]);
-  const byteArrays = [];
-
-  for (let offset = 0; offset < byteCharacters.length; offset += sliceSize) {
-    const slice = byteCharacters.slice(offset, offset + sliceSize);
-
-    const byteNumbers = new Array(slice.length);
-    for (let i = 0; i < slice.length; i++) {
-      byteNumbers[i] = slice.charCodeAt(i);
-    }
-
-    const byteArray = new Uint8Array(byteNumbers);
-    byteArrays.push(byteArray);
-  }
-
-  const blob = new Blob(byteArrays, { type: contentType });
-  return blob;
+  return new Blob(base64ToBlobParts(parsed.base64, sliceSize), {
+    type: mimeType,
+  });
 }
 
 /**
@@ -182,9 +390,10 @@ export function base64toBlob(b64Data, contentType?, sliceSize = 512) {
  * @param {string} base64 - The Base64 Data URI to be converted.
  * @return {Uint8Array} - The resulting binary data as a Uint8Array.
  * @tags #converter #string #web
+ * @deprecated base64ToBytes(parseBase64(dataUrl).base64)
  */
 export function convertDataURIToBinary(base64) {
-  return Uint8Array.from(atob(base64.replace(/^data:(.*,)?/, '')), v => v.charCodeAt(0));//old regExp /^data[^,]+,/
+  return  base64ToBytes(splitDataUrl(base64).body);
 }
 
 /**
@@ -869,11 +1078,18 @@ export function validateFileName(fileName) {
  * @param {string} fileName - The file name to sanitize.
  * @return {string} - A valid file name with invalid characters removed.
  * @tags #string #utility #validation
+ * @altname getValidFileName
  */
-export function getValidFileName(fileName) {
-  let newFileName = fileName.replace(/^\.+/gim, "").replace(/[\\/:*?\"<>|]/gim, "");
-  return newFileName;
+
+export function sanitizeFilename(fileName) {
+  let s = String(fileName || 'file');
+  s = s.replace(/[\x00-\x1f\u0000-\u001F\/\\:*?"<>|]/g, '');
+  s = s.replace(/\s+/g, ' ').trim();
+  s = s.replace(/[. ]+$/g, '');
+  if (s.length > 200) s = s.slice(0, 200);
+  return s;
 }
+
 
 /**
  * Extracts the file extension from a given file name.
@@ -1957,10 +2173,11 @@ export function smartEncodeURIComponent(str) {
  * @tags #string #parsing #cookie #utility
  */
 export function parseCookieString(str) {
-  return [...str.match(/[^, ;=]+(?:=|)(?:[^;,]|(?:[^=;]*(?=;)))*/gm)].reduce((prev, cur) => {
+  if(!str) return [];
+  return [...str?.match(/[^, ;=]+(?:=|)(?:[^;,]|(?:[^=;]*(?=;)))*/gm)]?.reduce((prev, cur) => {
     var arr = cur.split('=');
     return [...prev, arr];
-  }, []);
+  }, []) || [];
 }
 
 /**
@@ -2247,6 +2464,37 @@ export function sharedStartByNumber(array, num, wholeWordCount) {
 
   return stringTemp;
 }
+
+/**
+ * Returns the element with the maximum string length from an array.
+ *
+ * @param {string[]} arr - An array of strings.
+ * @returns {string} The longest string in the array.
+ *
+ * @throws {TypeError} If the array is empty or contains non-string values.
+ */
+export function longestElement(arr) {
+  if (arr.length === 0) return undefined;
+  return arr.reduce((longest, current) =>
+    current.length > longest.length ? current : longest
+  );
+}
+
+/**
+ * Returns the element with the minimum string length from an array.
+ *
+ * @param {string[]} arr - An array of strings.
+ * @returns {string} The shortest string in the array.
+ *
+ * @throws {TypeError} If the array is empty or contains non-string values.
+ */
+export function shortestElement(arr) {
+  if (arr.length === 0) return undefined;
+  return arr.reduce((shortest, current) =>
+    current.length < shortest.length ? current : shortest
+  );
+}
+
 /**
  * Processes a template string by replacing placeholders with a callback function's result.
  *
@@ -3916,6 +4164,64 @@ export function removeHTMLTags(html, onlyWrapTags?) {
   let result = html.replace(onlyWrapTags ? wrapTagsRegExp : allTagsRegExp, '');
 
   return result;
+}
+
+
+/**
+ * Escapes special HTML characters in a string to make it safe for rendering in HTML.
+ * Prevents XSS (Cross-Site Scripting) attacks by converting characters like `<`, `>`, `&`, etc., into their HTML entity equivalents.
+ * 
+ * @param {string} text - The input string to escape.
+ * @returns {string} The escaped string, safe for HTML rendering.
+ * @tags #string #security #utility #html
+ * @altname safetext
+ */
+export function escapeHtml(text) {
+  const table = {
+    lt: '<',
+    gt: '>',
+    quot: '"',
+    apos: "'",
+    '#39': "'",
+    amp: '&',
+    '#10': '\n',
+    '#13': '\r'
+  };
+
+  //alt:
+  // const div = document.createElement('div');
+  // div.textContent = str;
+  // return div.innerHTML;
+
+  return text.toString().replace(/[<>"'\r\n&]/g, function (chr) {
+    let key = Object.keys(table).find(key => table[key] == chr);
+    return '&' + key + ';';
+  });
+};
+
+/**
+ * Unescapes HTML entities in a string.
+ * 
+ * @param {string} text - The string containing HTML entities. lodash.unescape alternative
+ * @returns {string} - The unescaped string.
+ * @tags #lodash
+ */
+export function unescapeHtml(text: string): string {
+  const table: Record<string, string> = {
+    lt: '<',
+    gt: '>',
+    quot: '"',
+    apos: "'",
+    '#39': "'",
+    amp: '&',
+    '#10': '\n',
+    '#13': '\r'
+  };
+
+  return text.replace(/&(?:lt|gt|quot|apos|amp|#39|#10|#13);/g, (match) => {
+    const key = match.slice(1, -1);
+    return table[key] || match;
+  });
 }
 
 /**
@@ -6591,58 +6897,6 @@ export function renderFlexGrid(
   `;
 }
 
-/**
- * Escapes special HTML characters in a string to make it safe for rendering in HTML.
- * Prevents XSS (Cross-Site Scripting) attacks by converting characters like `<`, `>`, `&`, etc., into their HTML entity equivalents.
- * 
- * @param {string} text - The input string to escape.
- * @returns {string} The escaped string, safe for HTML rendering.
- * @tags #string #security #utility #html
- * @altname safetext
- */
-export function escapeHtml(text) {
-  var table = {
-    '<': 'lt',
-    '>': 'gt',
-    '"': 'quot',
-    '\'': 'apos',//'#039'
-    '&': 'amp',
-    '\r': '#10',
-    '\n': '#13'
-  };
-
-  //alt:
-  // const div = document.createElement('div');
-  // div.textContent = str;
-  // return div.innerHTML;
-
-  return text.toString().replace(/[<>"'\r\n&]/g, function (chr) {
-    return '&' + table[chr] + ';';
-  });
-};
-
-/**
- * Unescapes HTML entities in a string.
- * 
- * @param {string} text - The string containing HTML entities.
- * @returns {string} - The unescaped string.
- */
-export function unescapeHtml(text: string): string {
-  const table: Record<string, string> = {
-    'lt': '<',
-    'gt': '>',
-    'quot': '"',
-    'apos': "'",
-    'amp': '&',
-    '#10': '\r',
-    '#13': '\n'
-  };
-
-  return text.replace(/&(?:lt|gt|quot|apos|amp|#10|#13);/g, (match) => {
-    const key = match.slice(1, -1);
-    return table[key] || match;
-  });
-}
 
 
 /**
@@ -9680,100 +9934,115 @@ export function getLocalObjectValue(object, localProp) {
  * @returns {string}
  */
 export function stringifyCustom(obj, formatters = {}, space) {
-    space = space == undefined ? 2 : space;
-    function get(obj, key) {
-        if (key.includes('.')) {
-            return deepFind(obj, key);
-        }
-
-        return obj[key];
+  space = space == undefined ? 2 : space;
+  function get(obj, key) {
+    if (key.includes('.')) {
+      return deepFind(obj, key);
     }
 
-    function createMarker(id) {
-        return `__FORMATTER_${id}__`;
+    return obj[key];
+  }
+
+  function createMarker(id) {
+    return `__FORMATTER_${id}__`;
+  }
+
+  const formatterEntries = Object.entries(formatters)
+    .sort((a, b) =>
+      b[0].split('.').length -
+      a[0].split('.').length
+    );
+
+  const markers = new Map();
+
+  let markerId = 0;
+
+  function cloneWithMarkers(current, currentPath = '') {
+
+    if (Array.isArray(current)) {
+      return current.map((item, index) =>
+        cloneWithMarkers(
+          item,
+          currentPath
+            ? `${currentPath}.${index}`
+            : `${index}`
+        )
+      );
     }
 
-    const formatterEntries = Object.entries(formatters)
-        .sort((a, b) =>
-            b[0].split('.').length -
-            a[0].split('.').length
+    if (
+      current &&
+      typeof current === 'object'
+    ) {
+
+      const result = {};
+
+      for (const key of Object.keys(current)) {
+
+        const fullPath = currentPath
+          ? `${currentPath}.${key}`
+          : key;
+
+        const formatterEntry = formatterEntries.find(
+          ([path]) => path === fullPath
         );
 
-    const markers = new Map();
+        if (formatterEntry) {
 
-    let markerId = 0;
+          /** @type {Function} */
+          const formatterFn = formatterEntry?.[1];
 
-    function cloneWithMarkers(current, currentPath = '') {
+          const marker = createMarker(markerId++);
 
-        if (Array.isArray(current)) {
-            return current.map((item, index) =>
-                cloneWithMarkers(
-                    item,
-                    currentPath
-                        ? `${currentPath}.${index}`
-                        : `${index}`
-                )
-            );
+          markers.set(
+            marker,
+            formatterFn?.['call'](this,
+              get(obj, fullPath),
+              fullPath,
+              obj
+            )
+          );
+
+          result[key] = marker;
+
+        } else {
+          result[key] = cloneWithMarkers(
+            current[key],
+            fullPath
+          );
         }
+      }
 
-        if (
-            current &&
-            typeof current === 'object'
-        ) {
-
-            const result = {};
-
-            for (const key of Object.keys(current)) {
-
-                const fullPath = currentPath
-                    ? `${currentPath}.${key}`
-                    : key;
-
-                const formatterEntry = formatterEntries.find(
-                    ([path]) => path === fullPath
-                );
-
-                if (formatterEntry) {
-
-                    /** @type {Function} */
-                    const formatterFn = formatterEntry?.[1];
-
-                    const marker = createMarker(markerId++);
-
-                    markers.set(
-                        marker,
-                        formatterFn?.['call'](this,
-                            get(obj, fullPath),
-                            fullPath,
-                            obj
-                        )
-                    );
-
-                    result[key] = marker;
-
-                } else {
-                    result[key] = cloneWithMarkers(
-                        current[key],
-                        fullPath
-                    );
-                }
-            }
-
-            return result;
-        }
-
-        return current;
+      return result;
     }
 
-    const prepared = cloneWithMarkers(obj);
+    return current;
+  }
 
-    return JSON.stringify(prepared, null, space)
-        .replace(
-            /"__FORMATTER_\d+__"/g,
-            (match) => {
-                const marker = match.slice(1, -1);
+  const prepared = cloneWithMarkers(obj);
 
-                return markers.get(marker);
-            }
-        );
+  return JSON.stringify(prepared, null, space)
+    .replace(
+      /"__FORMATTER_\d+__"/g,
+      (match) => {
+        const marker = match.slice(1, -1);
+
+        return markers.get(marker);
+      }
+    );
+}
+
+
+// CSV helper
+export function csvEscape(value, delim) {
+  // value may be undefined, null, boolean, number, object
+  const s = value == null ? '' : String(value);
+  const mustQuote = s.includes('"') || s.includes(delim) || s.includes('\n') || s.includes('\r');
+  if (s.includes('"')) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  if (mustQuote) {
+    return `"${s}"`;
+  }
+  return s;
 }

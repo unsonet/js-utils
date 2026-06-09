@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "dependencies": {
     "tslib": "^2.8.1",
-    "@unsonet/external-libs": "^0.1.0",
+    "@unsonet/external-libs": "workspace:*",
     "json5":"^2.2.3",
     "acorn":"8.14.1"
   },
