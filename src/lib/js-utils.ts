@@ -229,16 +229,20 @@ export function base64ToBytes(base64: string): Uint8Array<ArrayBuffer> {
  * const signature = arrayBufferToBase64(signatureBuffer);
  */
 export function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  // Node.js
-  if (typeof Buffer !== "undefined") {
-    return Buffer.from(buffer).toString("base64");
+  // Node.js path
+  const g = globalThis as any;
+
+  if (typeof g.Buffer !== "undefined") {
+    return g.Buffer.from(buffer).toString("base64");
   }
 
-  // Browser
-  let binary = "";
+  // Browser path
   const bytes = new Uint8Array(buffer);
 
-  for (let i = 0; i < bytes.length; i++) {
+  let binary = "";
+  const len = bytes.length;
+
+  for (let i = 0; i < len; i++) {
     binary += String.fromCharCode(bytes[i]);
   }
 
