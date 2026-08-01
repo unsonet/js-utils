@@ -19,7 +19,7 @@ export var regExpPatterns = (() => {
   const firstChar = /(?<=(?:[^\p{L}|\p{N}\w]))(?:[\p{L}|\p{N}\w])/giu;
   //const cyrillicBoundary = /((?<=^|([^a-zа-я\w]))|(?![a-zа-я]|\w))/; //(\b alternative) deprecated
   //const wordBoundary = /(?<![\p{L}\p{N}_])WORD(?![\p{L}\p{N}_])/gu; //(\b alternative)
-  const jsonParser = /(?:\"|\')(?<key>[^"]*)(?:\"|\')(?=:)(?:\:\s*)(?:\"|\')?(?<value>true|false|[0-9a-zA-Z\u0400-\u04FF\+\-\,\.\$ /]+)+./gi;
+  const jsonParser = /(?:\"|\'|`|\b)(?<key>[^"{}]*)(?:\"|\'|`|\b)(?=\s*:\s*)(?:\s*\:\s*)(?:\"|\'|`|\b)?(?<value>true|false|[0-9a-zA-Z\u0400-\u04FF\+\-\,\.\$ /]+)+./gi;
   //const jsonParseAll = /\{|\}|\[|\]|,|:|(\\-)?\\d+(\\.\\d+)?|"|.+?"/gi; //deprecated
   const arrayExtractor = /\[[^\]]*(?:,[^\]]*){0,}\]/g;
   const arrayParser = /(?!\,|\[)[^\,]+(?=,|\s*\])/;
@@ -137,9 +137,9 @@ export function splitDataUrl(value: string) {
 export function toBase64(
   input: File | Blob | string,
   options: {
-  urlEncoded?: boolean;
-  withHeader?: boolean;
-} = {}
+    urlEncoded?: boolean;
+    withHeader?: boolean;
+  } = {}
 ): Promise<string> {
   const { urlEncoded = false, withHeader = false } = options || {};
 
@@ -311,17 +311,17 @@ export function base64ToBlobParts(
 export function fromBase64(
   input: string,
   options: {
-  output?: 'blob' | 'file' | 'base64' | 'dataUrl';
-  mimeType?: string;
-  fileName?: string;
-  sliceSize?:number,
-} = {} 
+    output?: 'blob' | 'file' | 'base64' | 'dataUrl';
+    mimeType?: string;
+    fileName?: string;
+    sliceSize?: number,
+  } = {}
 ): string | Blob | File {
   const {
     output = 'blob',
     mimeType: overrideMime,
     fileName = 'file',
-  sliceSize = 0,
+    sliceSize = 0,
   } = options;
 
   const parsed = parseBase64(input);
@@ -397,7 +397,7 @@ export function base64toBlob(
  * @deprecated base64ToBytes(parseBase64(dataUrl).base64)
  */
 export function convertDataURIToBinary(base64) {
-  return  base64ToBytes(splitDataUrl(base64).body);
+  return base64ToBytes(splitDataUrl(base64).body);
 }
 
 /**
@@ -2177,7 +2177,7 @@ export function smartEncodeURIComponent(str) {
  * @tags #string #parsing #cookie #utility
  */
 export function parseCookieString(str) {
-  if(!str) return [];
+  if (!str) return [];
   return [...str?.match(/[^, ;=]+(?:=|)(?:[^;,]|(?:[^=;]*(?=;)))*/gm)]?.reduce((prev, cur) => {
     var arr = cur.split('=');
     return [...prev, arr];
@@ -2338,6 +2338,28 @@ export function escapeRegExp(string) {
 }
 
 /**
+ * Returns the index of the last match of a substring or regular expression in a string.
+ *
+ * @param {string} string - The string to search in.
+ * @param {string | RegExp} regexpOrSubstr - The substring or regular expression to search for.
+ * @return {number} - Index of last match or -1 if not found.
+ */
+export function indexOfLast(string, regexpOrSubstr) {
+  let regex = typeof regexpOrSubstr === 'string'
+    ? new RegExp(escapeRegExp(regexpOrSubstr), 'g')
+    : new RegExp(regexpOrSubstr.source, regexpOrSubstr.flags.includes('g') ? regexpOrSubstr.flags : regexpOrSubstr.flags + 'g');
+
+  let lastIndex = -1;
+  let match;
+
+  while ((match = regex.exec(string)) !== null) {
+    lastIndex = match.index;
+  }
+
+  return lastIndex;
+}
+
+/**
  * Splits a string into two parts at the first occurrence of a specified substring or regular expression.
  * 
  * @param {string} string - The string to split.
@@ -2350,27 +2372,66 @@ export function splitFirst(string, regexpOrSubstr: string | RegExp) {
   return string.replace(regexpOrSubstr, specialSymbol).split(specialSymbol);
 }
 
+
 /**
- * Splits a string into parts according to the specified positions.
- * @param {string} str - The original string to be split.
- * @param {number[]|number} positions - An array of positions at which to split the string.
- * @returns {string[]} An array of substrings split at the specified positions.
- * @throws {Error} If the positions are specified incorrectly (e.g., out of bounds of the string).
+ * Splits a string into two parts at the last occurrence of a substring or regular expression.
+ *
+ * @param {string} string - The string to split.
+ * @param {string | RegExp} regexpOrSubstr - Substring or RegExp to split on.
+ * @returns {[string, string]} - [beforeLastMatch, afterLastMatch]
  */
-export function splitByPosition(str, positions) {
-  // Sort the positions in ascending order
-  positions = Array.isArray(positions) ? positions : [positions];
-  const sortedPositions = [...positions].sort((a, b) => a - b);
+export function splitLast(string, regexpOrSubstr) {
+  const regex = typeof regexpOrSubstr === 'string'
+    ? new RegExp(escapeRegExp(regexpOrSubstr), 'g')
+    : new RegExp(
+      regexpOrSubstr.source,
+      regexpOrSubstr.flags.includes('g')
+        ? regexpOrSubstr.flags
+        : regexpOrSubstr.flags + 'g'
+    );
+
+  let lastMatch = null;
+
+  let m;
+  while ((m = regex.exec(string)) !== null) {
+    lastMatch = m;
+  }
+
+  if (!lastMatch) return [string, ''];
+
+  const splitIndex = lastMatch.index + lastMatch[0].length;
+
+  return [
+    string.slice(0, splitIndex),
+    string.slice(splitIndex)
+  ];
+}
+
+/**
+ * Splits a string or array at the specified index or indexes.
+ *
+ * @template T
+ * @param {string | T[]} value - The string or array to split.
+ * @param {number | number[]} indexes - One or more split indexes.
+ * @param {{ exclude?: boolean }} [options] - If `exclude` is `true`, removes the element or character at each split index.
+ * @returns {(string[] | T[][])} The resulting parts.
+ * @tags #string #array #split #utility
+ * @altName splitByPosition, splitArrayByIndex
+ */
+export function splitByIndex(value, indexes, { exclude = false } = {}) {
+  indexes = Array.isArray(indexes) ? indexes : [indexes];
+
+  const sortedIndexes = [...indexes].sort((a, b) => a - b);
+
   const result = [];
   let start = 0;
 
-  for (const pos of sortedPositions) {
-    result.push(str.slice(start, pos));
-    start = pos;
+  for (const index of sortedIndexes) {
+    result.push(value.slice(start, index));
+    start = exclude ? index + 1 : index;
   }
 
-  // Add the remaining part of the string
-  result.push(str.slice(start));
+  result.push(value.slice(start));
 
   return result;
 }
@@ -2468,6 +2529,110 @@ export function sharedStartByNumber(array, num, wholeWordCount) {
 
   return stringTemp;
 }
+
+
+/**
+ * Retrieves a list of unique keys from an array of objects.
+ * 
+ * @param {Array<Object>} objectArray - The array of objects to extract keys from.
+ * @return {string[]} - An array of unique keys.
+ * @tags #object #array #utility
+ */
+export function getUniqueKeys(objectArray) {
+  return Array.from(new Set(objectArray.map((item) => Object.keys(item)).flat()));
+}
+
+/**
+ * Generates an array of numbers within a specified range.
+ * 
+ * @param {number} size - The number of elements in the range.
+ * @param {number} [startAt=0] - The starting number of the range.
+ * @return {number[]} - An array of numbers from `startAt` to `startAt + size - 1`.
+ * @tags #array #range #utility
+ */
+export function range(size, startAt = 0) {
+  return [...Array(size).keys()].map(i => i + startAt);
+}
+
+/**
+ * Finds the closest integer to `a` that is a multiple of `b`.
+ * 
+ * @param {number} a - The target number.
+ * @param {number} b - The base multiple.
+ * @param {number} [x=Math.trunc(a / b)] - How many times `b` fits into `a` (optional, calculated by default).
+ * @return {number|string} - The closest multiple of `b` to `a`, or an error message if `a` is less than `b`.
+ * @tags #math #utility
+ */
+export function getClosestInteger(a, b, x = Math.trunc(a / b)) {//x - how many times is b contained in a
+  if (a > b) {// foolproof
+    if (!(a % b)) //if a is divisible by b without remainder
+      return a;// so a is the answer
+    return (b * (x + 1) - a) < (a - b * x) ? b * (x + 1) : b * x; //otherwise, choose between b * x and b * (x + 1)
+  }
+  return 'Wrong attributes';
+}
+
+/**
+ * Splits an array into smaller chunks of a specified size.
+ * 
+ * @param {Array} arr - The array to split.
+ * @param {number} div - The size of each chunk.
+ * @return {Array<Array>} - An array of chunks, where each chunk is an array.
+ * @tags #array #split #utility #chunk
+ */
+export function splitArray(arr, div) {
+  const out = [];
+  if (!div || div <= 0) return [arr.slice()];
+  for (let i = 0; i < Math.ceil(arr.length / div); i++) {
+    out.push(arr.slice(i * div, i * div + div));
+  }
+  return out;
+}
+
+
+/**
+ * Splits an array into `n` parts, with an optional part length and format.
+ * 
+ * @param {Array} arr - The array to split.
+ * @param {number} n - The number of parts to split the array into.
+ * @param {number} [plen] - The length of each part. If not provided, it is calculated automatically.
+ * @param {boolean} [asObject=false] - Whether to return parts as objects instead of arrays.
+ * @return {Array<Array|Object>} - An array of parts, either as arrays or objects.
+ * @tags #array #split #utility
+ */
+export function splitToArray(arr, n, plen?, asObject?) {
+  plen = plen ? plen : Math.ceil(arr.length / n);
+  return arr.reduce(function (p, c, i, a) {
+    if (i % plen === 0) p.push(asObject ? {} : []);
+    if (asObject) {
+      p[p.length - 1][i] = c;
+    } else {
+      p[p.length - 1].push(c);
+    }
+    return p;
+  }, []);
+}
+
+/**
+ * Pairs elements from multiple arrays by their index, filling with `null` if an array is shorter.
+ * 
+ * @param {Array<Array<any>>} arrays - An array of arrays to pair. Example: [["a","b","c"], ["d","e","f","g"]];
+ * @return {Array<Array<any>>} - An array of pairs, where each pair contains elements from the input arrays at the same index.
+ * @tags #array #pairing #utility
+ */
+export function pairArrays(arrays) {
+  const maxLength = Math.max(...arrays.map(arr => arr.length));
+  const result = [];
+  for (let i = 0; i < maxLength; i++) {
+    const pair = [];
+    for (const arr of arrays) {
+      pair.push(arr[i] || null);
+    }
+    result.push(pair);
+  }
+  return result;
+}
+
 
 /**
  * Returns the element with the maximum string length from an array.
@@ -4013,26 +4178,58 @@ export function flattenNested(obj) {
 }
 
 /**
- * Retrieves a nested value from an object using a dot-separated key path, with optional support for regular expressions. lodash.get alternative
- * 
- * @param {Object} obj - The object to retrieve the value from.
- * @param {string} key - The dot-separated key path to the desired value.
- * @param {boolean} [regExpEnabled=false] - Whether to enable regular expression matching for keys.
- * @return {any} - The value at the specified key path, or `undefined` if not found.
- * @tags #object #nested #utility #lodash
+ * Retrieves a nested value from an object using a dot-separated key path.
+ * Supports wildcard/regular expression matching and non-enumerable properties.
+ *
+ * Examples:
+ *   getNestedValue(obj, "foo.bar");
+ *   getNestedValue(obj, "foo.*__bar", { regExp: true });
+ *   getNestedValue(obj, "foo.*__bar", {
+ *     regExp: true,
+ *     ownPropertyNames: true
+ *   });
+ *
+ * @param {Object} obj
+ * @param {string} key
+ * @param {Object} [options]
+ * @param {boolean} [options.regExp=false] Enable RegExp matching for path segments.
+ * @param {boolean} [options.ownPropertyNames=false] Include non-enumerable properties.
+ * @param {boolean} [options.symbols=false] Include Symbol keys (uses Reflect.ownKeys()).
+ * @returns {any}
  */
-export function getNestedValue(obj, key, regExpEnabled?) {
-  return key.split(".").reduce(function (result, key) {
-    if (regExpEnabled) {
-      let resultKey = Object.keys(result).find(resKey => {
-        key = key.replace('*', '.*');
-        var bool = getMatchesRegExp(key).test(resKey);
-        return bool
-      });
-      return result?.[resultKey];
-    } else {
-      return result?.[key];
+export function getNestedValue(obj, key, options?) {
+  const {
+    regExp = false,
+    ownPropertyNames = false,
+    symbols = false
+  } = options || {};
+
+  return key.split(".").reduce((result, part) => {
+    if (result == null) {
+      return undefined;
     }
+
+    if (!regExp) {
+      return result[part];
+    }
+
+    const keys = symbols
+      ? Reflect.ownKeys(result)
+      : ownPropertyNames
+        ? Object.getOwnPropertyNames(result)
+        : Object.keys(result);
+
+    const regexp = getMatchesRegExp(
+      part.replace(/\*/g, ".*")
+    );
+
+    const matchedKey = keys.find(k =>
+      typeof k === "string" && regexp.test(k)
+    );
+
+    return matchedKey === undefined
+      ? undefined
+      : result[matchedKey];
   }, obj);
 }
 
@@ -4737,119 +4934,6 @@ export function tableToJSON(table, opts) {
 /*end tables*/
 
 /**
- * Retrieves a list of unique keys from an array of objects.
- * 
- * @param {Array<Object>} objectArray - The array of objects to extract keys from.
- * @return {string[]} - An array of unique keys.
- * @tags #object #array #utility
- */
-export function getUniqueKeys(objectArray) {
-  return Array.from(new Set(objectArray.map((item) => Object.keys(item)).flat()));
-}
-
-/**
- * Generates an array of numbers within a specified range.
- * 
- * @param {number} size - The number of elements in the range.
- * @param {number} [startAt=0] - The starting number of the range.
- * @return {number[]} - An array of numbers from `startAt` to `startAt + size - 1`.
- * @tags #array #range #utility
- */
-export function range(size, startAt = 0) {
-  return [...Array(size).keys()].map(i => i + startAt);
-}
-
-/**
- * Finds the closest integer to `a` that is a multiple of `b`.
- * 
- * @param {number} a - The target number.
- * @param {number} b - The base multiple.
- * @param {number} [x=Math.trunc(a / b)] - How many times `b` fits into `a` (optional, calculated by default).
- * @return {number|string} - The closest multiple of `b` to `a`, or an error message if `a` is less than `b`.
- * @tags #math #utility
- */
-export function getClosestInteger(a, b, x = Math.trunc(a / b)) {//x - how many times is b contained in a
-  if (a > b) {// foolproof
-    if (!(a % b)) //if a is divisible by b without remainder
-      return a;// so a is the answer
-    return (b * (x + 1) - a) < (a - b * x) ? b * (x + 1) : b * x; //otherwise, choose between b * x and b * (x + 1)
-  }
-  return 'Wrong attributes';
-}
-
-/**
- * Splits an array into smaller chunks of a specified size.
- * 
- * @param {Array} arr - The array to split.
- * @param {number} div - The size of each chunk.
- * @return {Array<Array>} - An array of chunks, where each chunk is an array.
- * @tags #array #split #utility #chunk
- */
-export function splitArray(arr, div) {
-  const out = [];
-  if (!div || div <= 0) return [arr.slice()];
-  for (let i = 0; i < Math.ceil(arr.length / div); i++) {
-    out.push(arr.slice(i * div, i * div + div));
-  }
-  return out;
-}
-
-/**
- * Splits an array into two parts at a specified index.
- * 
- * @param {Array} arr - The array to split.
- * @param {number} index - The index at which to split the array.
- * @return {Array<Array>} - An array containing two subarrays: one before the index and one after.
- * @tags #array #split #utility
- */
-export function splitArrayByIndex(arr, index) {
-  return [arr.slice(0, index), arr.slice(index + 1)];
-}
-
-/**
- * Splits an array into `n` parts, with an optional part length and format.
- * 
- * @param {Array} arr - The array to split.
- * @param {number} n - The number of parts to split the array into.
- * @param {number} [plen] - The length of each part. If not provided, it is calculated automatically.
- * @param {boolean} [asObject=false] - Whether to return parts as objects instead of arrays.
- * @return {Array<Array|Object>} - An array of parts, either as arrays or objects.
- * @tags #array #split #utility
- */
-export function splitToArray(arr, n, plen?, asObject?) {
-  plen = plen ? plen : Math.ceil(arr.length / n);
-  return arr.reduce(function (p, c, i, a) {
-    if (i % plen === 0) p.push(asObject ? {} : []);
-    if (asObject) {
-      p[p.length - 1][i] = c;
-    } else {
-      p[p.length - 1].push(c);
-    }
-    return p;
-  }, []);
-}
-
-/**
- * Pairs elements from multiple arrays by their index, filling with `null` if an array is shorter.
- * 
- * @param {Array<Array<any>>} arrays - An array of arrays to pair. Example: [["a","b","c"], ["d","e","f","g"]];
- * @return {Array<Array<any>>} - An array of pairs, where each pair contains elements from the input arrays at the same index.
- * @tags #array #pairing #utility
- */
-export function pairArrays(arrays) {
-  const maxLength = Math.max(...arrays.map(arr => arr.length));
-  const result = [];
-  for (let i = 0; i < maxLength; i++) {
-    const pair = [];
-    for (const arr of arrays) {
-      pair.push(arr[i] || null);
-    }
-    result.push(pair);
-  }
-  return result;
-}
-
-/**
  * Determines whether a given object is a class.
  * 
  * @param {any} obj - The object to check.
@@ -5387,8 +5471,16 @@ export function interpolateData({ data, fillMissing, groupByFields, sortByFields
  * @returns {Array<number>} An array containing the numeric RGB values.
  * @tags #string #color #converter
  */
-export function parseRGB(rgb) {
-  return (rgb || '')?.match(/\d+/g)?.map(Number) || [];
+export function parseRGB(str) {
+  if (!str) return null;
+  let match = str.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+  if (!match) return null;
+  return Object.assign([...match].slice(1), {
+    r: parseInt(match[1], 10),
+    g: parseInt(match[2], 10),
+    b: parseInt(match[3], 10),
+    a: match[4] !== undefined ? parseFloat(match[4]) : 1
+  });
 }
 
 /**
@@ -9191,7 +9283,7 @@ export function getAutocompleteRemainder(target, input, options?) {
       })();
 
       let specialSymbol = '¬';
-      let targetSlice = splitByPosition(target, cutPos).join(specialSymbol);
+      let targetSlice = splitByIndex(target, cutPos).join(specialSymbol);
       let targetSlices = [...targetSlice.match(/(?:\p{L}|\p{N}|\S)+|\s+/gu)];
 
       let filterSentenceArray = (sentenceArray) => (sentenceArray || [])
@@ -9864,44 +9956,88 @@ export function hasGroup(str, regexp, names) {
   return false;
 }
 
+/**
+ * Splits input text into two parts based on character and word limits,
+ * while iterating through regex-based text tokens (words, URLs, phones, etc.).
+ *
+ * The function processes tokens sequentially using `regExpPatterns.text`
+ * and stops as soon as either:
+ * - max character limit is exceeded
+ * - max word limit is exceeded
+ * - or `onMatchesFn` explicitly requests a stop
+ *
+ * @param {string} input - The source text to process.
+ * @param {Object} [options] - Configuration options.
+ * @param {number} [options.maxChars=Infinity] - Maximum allowed number of characters.
+ * @param {number} [options.maxWords=Infinity] - Maximum allowed number of words.
+ * @param {function|null} [options.onMatchesFn=null] - Optional callback invoked on each match.
+ *        Can be used to override stopping logic.
+ *
+ * @returns {{accepted: string, rest: string}} Object containing:
+ * - `accepted`: substring that fits within constraints
+ * - `rest`: remaining unprocessed part of the input
+ */
 export function fitTextSmart(input, options?) {
   const {
     maxChars = Infinity,
     maxWords = Infinity,
+    onMatchesFn = null
   } = options || {};
+
+  const regex = regExpPatterns.text;
+  regex.lastIndex = 0;
 
   let chars = 0;
   let words = 0;
 
-  let accepted = '';
-  let restStart = 0;
+  let m;
 
-  const matches = [...input.matchAll(regExpPatterns.text)];
+  while ((m = regex.exec(input))) {
+    const matchText = m[0];
+    const index = m.index;
+    const isWord = !m.space;
 
-  for (let i = 0; i < matches.length; i++) {
-    const m = matches[i][0];
-    const isWord = !matches[i].space;
-    // matches[i].groups.word ||
-    // matches[i].groups.url ||
-    // matches[i].groups.phone;
+    const nextChars = chars + matchText.length;
+    const nextWords = isWord ? words + 1 : words;
 
-    const nextChars = chars + m.length;
-    const nextWords = words + (isWord ? 1 : 0);
+    const maxCharsExceeded = nextChars > maxChars;
+    const maxWordsExceeded = nextWords > maxWords;
+    const overflow =
+      maxCharsExceeded ||
+      maxWordsExceeded;
 
-    if (nextChars > maxChars || nextWords > maxWords) {
-      restStart = matches[i].index;
+    const conditions = {
+      maxChars: maxCharsExceeded,
+      maxWords: maxWordsExceeded,
+      overflow
+    };
+
+    if (onMatchesFn) {
+      const res = onMatchesFn({
+        values: { nextChars, nextWords },
+        conditions,
+        match: m,
+        index
+      });
+
+      if (res) {
+        const splitIndex = typeof res === 'number' ? res : index;
+        return {
+          accepted: input.slice(0, splitIndex),
+          rest: input.slice(splitIndex)
+        };
+      }
+    }
+
+    if (overflow) {
       return {
-        accepted,
-        rest: input.slice(restStart)
+        accepted: input.slice(0, index),
+        rest: input.slice(index)
       };
     }
 
-    accepted += m;
     chars = nextChars;
-
-    if (isWord) {
-      words = nextWords;
-    }
+    words = nextWords;
   }
 
   return {
@@ -10050,3 +10186,228 @@ export function csvEscape(value, delim) {
   }
   return s;
 }
+
+/**
+ * Parses a pseudo-JSON / JavaScript object string into a JavaScript value.
+ *
+ * Supported features:
+ * - Unquoted object keys
+ * - Nested objects and arrays
+ * - Strings enclosed in single quotes ('), double quotes ("), or backticks (`)
+ * - Numbers
+ * - Booleans (`true`, `false`)
+ * - `null`
+ *
+ * Examples:
+ * parsePseudoJson('{foo: 123, bar: {baz: "test"}}')
+ * // => { foo: 123, bar: { baz: "test" } }
+ *
+ * parsePseudoJson('[1, 2, {name: "John"}]')
+ * // => [1, 2, { name: "John" }]
+ *
+ * @param {string|*} input - The value to parse. Non-string values are returned unchanged.
+ * @returns {*} The parsed JavaScript value.
+ */
+export function parsePseudoJson(input) {
+
+  function splitTopLevel(str, separator) {
+    const result = [];
+
+    let start = 0;
+    let braces = 0;
+    let brackets = 0;
+    let parens = 0;
+    let quote = null;
+
+    for (let i = 0; i < str.length; i++) {
+      const ch = str[i];
+
+      if (quote) {
+        if (ch === quote && str[i - 1] !== '\\')
+          quote = null;
+        continue;
+      }
+
+      if (ch === '"' || ch === "'" || ch === '`') {
+        quote = ch;
+        continue;
+      }
+
+      switch (ch) {
+        case '{':
+          braces++;
+          break;
+
+        case '}':
+          braces--;
+          break;
+
+        case '[':
+          brackets++;
+          break;
+
+        case ']':
+          brackets--;
+          break;
+
+        case '(':
+          parens++;
+          break;
+
+        case ')':
+          parens--;
+          break;
+
+        default:
+          if (
+            ch === separator &&
+            braces === 0 &&
+            brackets === 0 &&
+            parens === 0
+          ) {
+            result.push(str.slice(start, i).trim());
+            start = i + 1;
+          }
+      }
+    }
+
+    result.push(str.slice(start).trim());
+
+    return result.filter(Boolean);
+  }
+
+  function findTopLevelColon(str) {
+    let braces = 0;
+    let brackets = 0;
+    let parens = 0;
+    let quote = null;
+
+    for (let i = 0; i < str.length; i++) {
+      const ch = str[i];
+
+      if (quote) {
+        if (ch === quote && str[i - 1] !== '\\')
+          quote = null;
+        continue;
+      }
+
+      if (ch === '"' || ch === "'" || ch === '`') {
+        quote = ch;
+        continue;
+      }
+
+      switch (ch) {
+        case '{':
+          braces++;
+          break;
+
+        case '}':
+          braces--;
+          break;
+
+        case '[':
+          brackets++;
+          break;
+
+        case ']':
+          brackets--;
+          break;
+
+        case '(':
+          parens++;
+          break;
+
+        case ')':
+          parens--;
+          break;
+
+        case ':':
+          if (
+            braces === 0 &&
+            brackets === 0 &&
+            parens === 0
+          ) {
+            return i;
+          }
+          break;
+      }
+    }
+
+    return -1;
+  }
+
+  if (typeof input !== 'string')
+    return input;
+
+  const str = input.trim();
+
+  // primitives
+  if (str === 'true')
+    return true;
+
+  if (str === 'false')
+    return false;
+
+  if (str === 'null')
+    return null;
+
+  if (str !== '' && !isNaN(Number(str)))
+    return Number(str);
+
+  // string
+  if (
+    (str.startsWith('"') && str.endsWith('"')) ||
+    (str.startsWith("'") && str.endsWith("'")) ||
+    (str.startsWith('`') && str.endsWith('`'))
+  ) {
+    const unquoted = str.slice(1, -1);
+
+    // Снимаем только верхние кавычки и отдаем содержимое на стандартный парсинг
+    return parsePseudoJson(unquoted);
+  }
+
+  // object
+  if (str.startsWith('{') && str.endsWith('}')) {
+
+    const result = {};
+    const inner = str.slice(1, -1).trim();
+
+    if (!inner)
+      return result;
+
+    const pairs = splitTopLevel(inner, ',');
+
+    for (const pair of pairs) {
+
+      const colon = findTopLevelColon(pair);
+
+      if (colon === -1)
+        continue;
+
+      let key = pair.slice(0, colon).trim();
+      const value = pair.slice(colon + 1).trim();
+
+      if (
+        (key.startsWith('"') && key.endsWith('"')) ||
+        (key.startsWith("'") && key.endsWith("'")) ||
+        (key.startsWith('`') && key.endsWith('`'))
+      ) {
+        key = key.slice(1, -1);
+      }
+
+      result[key] = parsePseudoJson(value);
+    }
+
+    return result;
+  }
+
+  if (str.startsWith('[') && str.endsWith(']')) {
+    const inner = str.slice(1, -1).trim();
+    if (!inner)
+      return [];
+
+    return splitTopLevel(inner, ',').map(parsePseudoJson);
+  }
+
+  return str;
+};
