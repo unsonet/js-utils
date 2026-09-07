@@ -400,6 +400,82 @@ export function convertDataURIToBinary(base64) {
   return base64ToBytes(splitDataUrl(base64).body);
 }
 
+
+/**
+ * @param {Object} options - Decryption options.
+ * @param {string} options.encryptedData - Base64-encoded encrypted data.
+ * @param {string} options.password - Password used for PBKDF2 key derivation.
+ * @param {string} options.salt - Salt used for PBKDF2 key derivation.
+ * @param {boolean|"auto"} [options.decompress="auto"] - Whether to decompress
+ * gzip-compressed decrypted data.
+ */
+export async function decryptText(options) {
+  let { encryptedData, password, salt, decompress = "auto" } = options || {};
+  const decodedData = atob(encryptedData);
+  const iterations = 1000;
+
+  const encoder = new TextEncoder();
+
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(password),
+    { name: "PBKDF2" },
+    false,
+    ["deriveKey"]
+  );
+
+  const derivedKey = await crypto.subtle.deriveKey(
+    {
+      name: "PBKDF2",
+      salt: encoder.encode(salt),
+      iterations: iterations,
+      hash: "SHA-256",
+    },
+    keyMaterial,
+    { name: "AES-CBC", length: 256 },
+    false,
+    ["decrypt"]
+  );
+
+  const [dataPart, ivHex] = decodedData.split(":");
+
+  const iv = new Uint8Array(
+    ivHex.match(/.{1,2}/g).map(byte => parseInt(byte, 16))
+  );
+
+  const encryptedContent = new Uint8Array(
+    atob(dataPart).split("").map(c => c.charCodeAt(0))
+  );
+
+  const decryptedData = await crypto.subtle.decrypt(
+    { name: "AES-CBC", iv },
+    derivedKey,
+    encryptedContent
+  );
+
+  const bytes = new Uint8Array(decryptedData);
+
+  const isGzip = bytes.length >= 2 && bytes[0] === 31 && bytes[1] === 139;
+
+  const shouldDecompress =
+    decompress === true ||
+    (decompress === "auto" && isGzip);
+
+  if (shouldDecompress) {
+    if (typeof DecompressionStream === "undefined") {
+      throw new Error("DecompressionStream is not supported in this environment");
+    }
+
+    const stream = new Blob([bytes])
+      .stream()
+      .pipeThrough(new DecompressionStream("gzip"));
+
+    return await new Response(stream).text();
+  }
+
+  return new TextDecoder().decode(bytes);
+}
+
 /**
  * Calculates the closeness between two numbers as a value between 0 and 1.
  * 
@@ -1740,12 +1816,12 @@ export function getVariableFromString(string, variable, multiple?, insensitive?)
   variable = Array.isArray(variable) ? variable : [variable];
 
   return variable.reduce((prev, cur) => {
-    let regExpStr = `(?<=(?:\\"|\\'|\\b)${cur}(?:\\"|\\'|\\b)(?:[\\s]*|){0,}(?:\\:|=)[\\s\\\`\\'\\"]{0,})(?:(?:(?<!\\\\)(?:\\\\{2})*(?<=\\\`|\\'|\\")(?<!\\\`\\\`|\\'\\'|\\"\\")(?:(?<!\\\\)(?:\\\\{2})*\\\\\\\`\\'\\"|[^\\\`\\'\\"]|)+(?<!\\\\)(?:\\\\{2})*)+|(?:[^\\\`\\'\\",\\}\\{\\n\\s]+(?!(?!\\b\\;)(\\s|\\n|[^\\\`\\'\\",\\}\\{\\n])+)))`; //old:`((?<=${cur}(?:[\\s]*|){0,}(?:\\:|=)[\\s\\'\\"]*)[^\\s\'\\",;]+)`;
+    let regExpStr = (`(?<=(?:\\"|\\'|\\b)${cur}(?:\\"|\\'|\\b)\\s*(?:\\:|=)\\s*)(?:[\\w$]+\\s*\\((?:"(?:\\\\.|[^"\\\\])*"|'(?:\\\\.|[^'\\\\])*'|[^()"']+)*\\)|"(?:\\\\.|[^"\\\\])*"|'(?:\\\\.|[^'\\\\])*'|[^\\s,;\\}\\{]+)`);//old:`((?<=${cur}(?:[\\s]*|){0,}(?:\\:|=)[\\s\\'\\"]*)[^\\s\'\\",;]+)`;
     let matches = string.match(new RegExp(regExpStr, 'gm' + (insensitive ? 'i' : ''))) || []
-    let value = matches?.[0];
+    let value = [...(matches || [])];
 
     if (multiple ? value?.length : value) {
-      prev[cur] = multiple ? [...(prev[cur] || []), value] : value
+      prev[cur] = multiple ? [...(prev[cur] || []), ...value] : value
     }
     return prev;
   }, {});
@@ -1874,6 +1950,91 @@ export function numToSSColumnLetter(num) {
     num = (num - t) / 26 | 0;
   }
   return columnLetter || undefined;
+}
+
+/**
+ * Converts an iterable or array-like value into an array. (Babel _slicedToArray alternative)
+ *
+ * @template T
+ * @param {Iterable<T> | ArrayLike<T> | T[]} iterable - Value to convert.
+ * @param {number} [limit] - Maximum number of elements to extract.
+ * @returns {T[]} An array containing the extracted elements.
+ * @throws {TypeError} If the value is not iterable or array-like.
+ */
+export function destructureToArray<T>(
+  iterable: Iterable<T> | ArrayLike<T> | T[],
+  limit?: number
+): T[] {
+  if (Array.isArray(iterable)) {
+    return iterable;
+  }
+
+  if (iterable == null) {
+    throw new TypeError(
+      'Invalid attempt to destructure non-iterable instance.'
+    );
+  }
+
+  const iterator =
+    typeof Symbol !== 'undefined'
+      ? (iterable as any)[Symbol.iterator]
+      : (iterable as any)['@@iterator'];
+
+  if (typeof iterator === 'function') {
+    const result: T[] = [];
+    const iter = iterator.call(iterable) as Iterator<T>;
+    let done = false;
+
+    try {
+      if (limit === 0) {
+        done = true;
+        return result;
+      }
+
+      while (!done && (limit === undefined || result.length < limit)) {
+        const next = iter.next();
+
+        if (next.done) {
+          done = true;
+        } else {
+          result.push(next.value);
+        }
+      }
+
+      return result;
+    } finally {
+      if (!done && typeof iter.return === 'function') {
+        iter.return();
+      }
+    }
+  }
+
+  // Handle strings and array-like objects.
+  if (
+    typeof iterable === 'string' ||
+    typeof (iterable as any).length === 'number'
+  ) {
+    const length = Math.max(
+      0,
+      Math.min(
+        (iterable as any).length,
+        limit === undefined ? Infinity : limit
+      )
+    );
+
+    const result: T[] = [];
+
+    for (let i = 0; i < length; i++) {
+      result.push((iterable as any)[i]);
+    }
+
+    return result;
+  }
+
+  throw new TypeError(
+    'Invalid attempt to destructure non-iterable instance.\n' +
+    'In order to be iterable, non-array objects must have a [Symbol.iterator]() method.'
+  );
 }
 
 /**
@@ -2441,12 +2602,14 @@ export function splitByIndex(value, indexes, { exclude = false } = {}) {
  * Supports splitting while ignoring separators inside brackets, quotes, and other special characters.
  *
  * @param {string} path - The path string to split into segments.
+ * @param {RegExp} customSplitRegExp - Regular expression for splitting a path 
  * @returns {string[]} - An array of path segments. Returns an empty array if the path does not match the pattern.
  *
  */
-export function splitPath(path) {
-  const pathSplit = /(?:(?:[^.\[\]\/\\"']{1,}\s{0,}|[^.\[\]\/\\"']\s{0,}(?<=\w|\d|\S))){1,}/gim;
-  return [...path.match(pathSplit)];
+export function splitPath(path, customSplitRegExp?) {
+  const defaultSplitRegExp = /(?:(?:[^.\[\]\/\\"']{1,}\s{0,}|[^.\[\]\/\\"']\s{0,}(?<=\w|\d|\S))){1,}/gim;
+  const pathSplit = customSplitRegExp && isRegExp(customSplitRegExp) ? customSplitRegExp : defaultSplitRegExp;
+  return [...(path.match(pathSplit) || [])];
 }
 
 /**
@@ -3210,7 +3373,7 @@ export function toConstantCase(str) {
  * @param {string} str - The input string to convert.
  * @return {string} - The converted string in Title Case.
  * @tags #string #conversion #utility
- * @altnames toProperCase
+ * @altname toProperCase
  */
 export function toTitleCase(str) {
   let parsedStringArray = str.split(/(?<!\p{Lu})(?=\p{Lu})|-| |_|\./gum).filter(item => item && !/^[^\p{L}\d]$/ui.test(item));
@@ -4010,9 +4173,13 @@ export function findAllIndexes(array, callback) {
   return result;
 }
 
+
 /**
  * Recursively flattens an object structure into a single array by extracting all array values.
- * This function traverses through all properties of the object and collects all array elements into a single flat array.
+ * This function traverses through all properties of the object and collects all array elements
+ * into a single flat array.
+ *
+ * The function supports deeply nested object structures without relying on the call stack.
  *
  * @param {Object} obj - The object to flatten. Can contain nested objects and arrays.
  * @returns {Array} - A new array containing all elements from arrays found in the object structure.
@@ -4020,19 +4187,31 @@ export function findAllIndexes(array, callback) {
  * @tags #object #array #flatten #recursion #utility
  */
 export function flattenObjectToArray(obj) {
-  let result = [];
-  function flatten(currentObj) {
-    for (let key in currentObj) {
-      if (Array.isArray(currentObj[key])) {
-        result.push(...currentObj[key]);
-      } else if (typeof currentObj[key] === 'object' && currentObj[key] !== null) {
-        flatten(currentObj[key]);
+  const result = [];
+  const stack = [obj];
+
+  while (stack.length) {
+    const currentObj = stack.pop();
+
+    if (!currentObj || typeof currentObj !== 'object') {
+      continue;
+    }
+
+    for (const key in currentObj) {
+      const value = currentObj[key];
+
+      if (Array.isArray(value)) {
+        result.push(...value);
+      } else if (typeof value === 'object' && value !== null) {
+        stack.push(value);
       }
     }
   }
-  flatten(obj);
+
   return result;
 }
+
+
 
 /**
  * Flattens a nested array into a single-level array.
@@ -5241,7 +5420,7 @@ export function sortArrayOfObjects(array, rules, sortFunction?) {
       let result = 0;
       let direction = 'asc';
 
-      if (typeof rule === 'object') {
+      if (typeof rule === 'object' && rule !== null) {
         // Defining the sorting direction
         if (rule.order === 'desc') direction = 'desc';
         if (rule.order === 'asc') direction = 'asc';
@@ -5253,24 +5432,27 @@ export function sortArrayOfObjects(array, rules, sortFunction?) {
 
         const dir = direction === 'asc' ? 1 : -1;
 
+        // Custom comparison function receives original values
         if ('func' in rule && typeof rule.func === 'function') {
           result = dir * (Number(rule.func(a, b)) || 0);
-        } else if ('field' in rule) {
-          const field = rule.field;
-          const isDate = rule.isDate;
-          const isNumber = rule.isNumber;
-          const ignoreCase = rule.ignoreCase;
+        } else {
+          // Extract field values if field is specified.
+          // Otherwise compare the values themselves.
+          let aValue = 'field' in rule ? a?.[rule.field] : a;
+          let bValue = 'field' in rule ? b?.[rule.field] : b;
 
-          let aValue = a?.[field];
-          let bValue = b?.[field];
-
-          if (isDate) {
-            aValue = aValue ? new Date(aValue) : new Date(0);
-            bValue = bValue ? new Date(bValue) : new Date(0);
-          } else if (isNumber) {
-            aValue = Number(String(aValue).replace(/\D/g, ''));
-            bValue = Number(String(bValue).replace(/\D/g, ''));
-          } else if (ignoreCase && typeof aValue === 'string' && typeof bValue === 'string') {
+          // Convert values according to the rule options.
+          if (rule.isDate) {
+            aValue = aValue ? new Date(aValue).getTime() : 0;
+            bValue = bValue ? new Date(bValue).getTime() : 0;
+          } else if (rule.isNumber) {
+            aValue = Number(aValue);
+            bValue = Number(bValue);
+          } else if (
+            rule.ignoreCase &&
+            typeof aValue === 'string' &&
+            typeof bValue === 'string'
+          ) {
             aValue = aValue.toLowerCase();
             bValue = bValue.toLowerCase();
           }
@@ -5283,14 +5465,19 @@ export function sortArrayOfObjects(array, rules, sortFunction?) {
         }
       } else if (typeof rule === 'string') {
         let dir = 1;
+
         if (rule[0] === '-') {
           dir = -1;
           rule = rule.substring(1);
         }
+
         const field = rule;
+
         let aValue = a?.[field];
         let bValue = b?.[field];
 
+        // Keep existing behaviour for string field rules:
+        // strings are compared case-insensitively by default.
         if (typeof aValue === 'string' && typeof bValue === 'string') {
           aValue = aValue.toLowerCase();
           bValue = bValue.toLowerCase();
@@ -5303,14 +5490,16 @@ export function sortArrayOfObjects(array, rules, sortFunction?) {
         }
       }
 
+      // Current rule produced a result, so stop evaluating
+      // subsequent sorting rules.
       if (result !== 0) {
         return result;
       }
     }
+
     return 0;
   });
 }
-
 
 /**
  * Sorts an array of objects based on multiple criteria.
@@ -5862,6 +6051,7 @@ export function countProperties(arr) {
  *   - `create`: If true, creates missing properties in the path.
  *   - `caseInsensitive`: If true, performs case-insensitive property matching.
  *   - `caseIndependent`: If true, performs case-independent property matching.
+ * @param {RegExp} [options.customSplitRegExp] - Regular expression for splitting a path 
  * @param {Function} [callbackFn] - Optional callback function invoked at each step of traversal.
  * @returns {*} The value found at the specified path, or `undefined` if the path does not exist.
  * @tags #object #recursion #utility #path #regex
@@ -5869,7 +6059,7 @@ export function countProperties(arr) {
  * @see https://github.com/KmlPro/updatejavascriptobjectbypath/blob/master/setMethod.tsx
  */
 export function deepFind(obj, path, options?, callbackFn?) {
-  let { handleString, create, caseInsensitive, caseIndependent } = options || {};
+  let { handleString, create, caseInsensitive, caseIndependent, customSplitRegExp, separator = '.' } = options || {};
 
   var schema = obj;  // refrence to main object
   let schemaReplaced = false;
@@ -5877,10 +6067,11 @@ export function deepFind(obj, path, options?, callbackFn?) {
   let lastReplacedSchema;
 
   return (function deepFindInner(obj, path, options?, callbackFn?) {
-    let { handleString, create, caseInsensitive, caseIndependent } = options || {};
+    let { handleString, create, caseInsensitive, caseIndependent, customSplitRegExp, separator = '.' } = options || {};
 
     var schema = obj;
-    var pList = splitPath(path);
+    var pathParts = splitPath(path, customSplitRegExp);
+    var pList = pathParts || [];
     var len = pList.length;
     let hasRegExp;
     // in this iteration we skip first element (if u want include first element in this iterations, change var i=1 to 0)
@@ -5889,26 +6080,52 @@ export function deepFind(obj, path, options?, callbackFn?) {
 
     for (var i = 0; i < len; i++) {
 
+      if (schema === undefined || schema === null) {
+        if (callbackFn) callbackFn(schema, [...pList].slice(0, i + 1), schemaReplaced, lastSchema);
+        break;
+      }
+
       var elem = pList[i];
       var indexOfTable = elem.indexOf("[");
       let parsedElem = parseRegExpString(elem || '');
       if (indexOfTable !== -1 && !parsedElem?.length) {
+        var closeBracket = elem.indexOf("]", indexOfTable);
         var tableElementName = elem.substring(0, indexOfTable);
-        var indexName = elem.substring(indexOfTable + 1, elem.length - 1);
+        var indexName = elem.substring(indexOfTable + 1, closeBracket !== -1 ? closeBracket : elem.length);
 
-        if (!schema[tableElementName][indexName]) {
-          schema[tableElementName][indexName] = {};
+        if (!schema[tableElementName]) {
+          if (create) {
+            schema[tableElementName] = Number.isInteger(+indexName) ? [] : {};
+          } else {
+            schema = undefined;
+            lastSchema = schema;
+            if (callbackFn) callbackFn(schema, [...pList].slice(0, i + 1), schemaReplaced, lastSchema);
+            break;
+          }
         }
-        else {
+
+        if (schema[tableElementName]) {
+          if (!schema[tableElementName][indexName]) {
+            if (create) schema[tableElementName][indexName] = {};
+          }
+
           schema = schema[tableElementName][indexName];
+        } else {
+          schema = undefined;
         }
-
         lastSchema = schema;
       } else {
 
-        let keySchema = (caseInsensitive || caseIndependent ? schema[Object.keys(schema).find(i => {
-          return caseIndependent ? caseIndependentCompare(i, elem) : caseInsensitive ? i.toLowerCase() == elem.toLowerCase() : i == elem;
-        })] : schema?.[elem]);
+        let keys = (schema != null && typeof schema === 'object') ? Object.keys(schema) : [];
+        let keySchema = (caseInsensitive || caseIndependent)
+          ? schema[keys.find(i => {
+            return caseIndependent
+              ? caseIndependentCompare(i, elem)
+              : caseInsensitive
+                ? i.toLowerCase() == elem.toLowerCase()
+                : i == elem;
+          })]
+          : schema?.[elem];
 
         if (typeof schema == 'object' && hasRegExp && lastReplacedSchema == schema) {
           hasRegExp = true;
@@ -5919,7 +6136,7 @@ export function deepFind(obj, path, options?, callbackFn?) {
 
           schema = Object.keys(schema || {}).reduce((prev, cur) => {
             let item = schema[cur];
-            let result = deepFindInner(item, elem, { handleString: true, create: false, caseInsensitive, caseIndependent });
+            let result = deepFindInner(item, elem, { handleString: true, create: false, caseInsensitive, caseIndependent, customSplitRegExp, separator });
 
             let data = result != undefined ? typeof prev == 'object' || typeof result == 'object' ? { ...((prev as any) || []), ...result } : prev : prev;
             return data;
@@ -5987,7 +6204,32 @@ export function deepFind(obj, path, options?, callbackFn?) {
     }
 
     return schema;
-  })(obj, path, { handleString, create, caseInsensitive, caseIndependent }, callbackFn);
+  })(obj, path, { handleString, create, caseInsensitive, caseIndependent, customSplitRegExp, separator }, callbackFn);
+}
+
+
+/**
+ * Sets a value in a nested object by specifying a path.
+ * @param {Object} obj - The target object to modify.
+ * @param {string} path - The path to the property, using dot notation (e.g., 'level1.level2.property').
+ * @param {*} value - The value to set at the specified path.
+ * @returns {Object} The modified object with the value set at the specified path.
+ * @deprecated use deepSet
+ */
+export function setValueByPath(obj, path, value) {
+  const parts = path.split('.');
+  let current = obj;
+
+  for (let i = 0; i < parts.length - 1; i++) {
+    if (!current[parts[i]]) {
+      current[parts[i]] = {};
+    }
+    current = current[parts[i]];
+  }
+
+  current[parts[parts.length - 1]] = value;
+
+  return obj;
 }
 
 /**
@@ -6000,12 +6242,14 @@ export function deepFind(obj, path, options?, callbackFn?) {
  * @param {Object} [options] - Optional configuration:
  *   - `replace`: If true, replaces the existing value at the path.
  *   - `create`: If true, creates missing properties in the path.
+ * @param {RegExp} [options.customSplitRegExp] - Regular expression for splitting a path 
  * @tags #object #recursion #utility #path #modification
+ * @altName setValueByPath
  */
 export function deepSet(obj, path = '', value, options?) {
-  let { replace, create } = options || {};
+  let { replace, create, customSplitRegExp, separator = '.' } = options || {};
   var schema = obj;  // refrence to main object
-  var pList = splitPath(path);
+  var pList = splitPath(path, customSplitRegExp);
   var len = pList.length;
   let handleString = false;
 
@@ -6014,7 +6258,7 @@ export function deepSet(obj, path = '', value, options?) {
 
   let initAdditionalDeepFind = false;
   try {
-    deepFind(obj, path, { handleString: false, create }, (schemaRef, currentPathList, schemaReplaced, lastSchema) => {
+    deepFind(obj, path, { handleString: false, create, customSplitRegExp, separator }, (schemaRef, currentPathList, schemaReplaced, lastSchema) => {
 
       let i = currentPathList.length - 1;
       let elem = currentPathList[i];
@@ -6072,7 +6316,7 @@ export function deepSet(obj, path = '', value, options?) {
   extractedPathList.forEach((pList, index) => {
     len = pList.length;
     if (initAdditionalDeepFind) {
-      deepFind(obj, pList.join('.'), { handleString: false, create }, (schemaRef, currentPathList, schemaReplaced, lastSchema) => {
+      deepFind(obj, pList.join(separator), { handleString: false, create, customSplitRegExp, separator }, (schemaRef, currentPathList, schemaReplaced, lastSchema) => {
         let i = currentPathList.length - 1;
         if (i == len - 2) {
           schema = schemaRef
@@ -9062,29 +9306,6 @@ export function removeByIndexes(arr, indexes) {
 }
 
 /**
- * Sets a value in a nested object by specifying a path.
- * @param {Object} obj - The target object to modify.
- * @param {string} path - The path to the property, using dot notation (e.g., 'level1.level2.property').
- * @param {*} value - The value to set at the specified path.
- * @returns {Object} The modified object with the value set at the specified path.
- */
-export function setValueByPath(obj, path, value) {
-  const parts = path.split('.');
-  let current = obj;
-
-  for (let i = 0; i < parts.length - 1; i++) {
-    if (!current[parts[i]]) {
-      current[parts[i]] = {};
-    }
-    current = current[parts[i]];
-  }
-
-  current[parts[parts.length - 1]] = value;
-
-  return obj;
-}
-
-/**
  * Removes elements from an array at specified indexes.
  * @param {Array} arr - The target array from which elements will be removed.
  * @param {Array<number>} indexes - The indexes of the elements to remove.
@@ -9434,7 +9655,7 @@ export function getAutocompleteRemainder(target, input, options?) {
  * @param {(a:string, b:string, aIndex:boolean, bIndex:boolean)=>boolean} [opts.transformMatch] - Custom function for transform matched tokens
  * @returns {Array<Array<string>>} An array of aligned segments as pairs of strings.
  */
-export function pairToAlignedSegments(pair, opts) {
+export function pairStringsToAlignedSegments(pair, opts) {
 
   opts = opts || {};
 
@@ -9739,6 +9960,119 @@ export function pairToAlignedSegments(pair, opts) {
   return final;
 }
 
+/**
+ * Aligns a pair of arrays into corresponding segments using LCS.
+ *
+ * @param {Array<Array>} pair - The pair of arrays to align, as [sourceArr, targetArr].
+ * @param {Object} [opts] - Configuration options.
+ * @param {string[]} [opts.compareKeys] - Property paths for matching (e.g., ['0', 'id', 'meta.type']).
+ *                                       Uses deepFind for nested access. If omitted and no customMatcher,
+ *                                       defaults to array[0] for arrays or strict equality.
+ * @param {(a:any, b:any, aIndex:number, bIndex:number)=>boolean} [opts.customMatcher]
+ * @param {(a:any, b:any, aIndex:number, bIndex:number)=>[any,any]|null} [opts.transformMatch]
+ * @returns {Array<Array<any>>} An array of aligned pairs [srcItem, tgtItem].
+ */
+export function pairArraysToAlignedSegments(pair, opts) {
+  opts = opts || {};
+  const [src, tgt] = pair;
+
+  // --- Value extraction helper (uses your deepFind if available) ---
+  const getValue = (obj, key) => {
+    if (obj == null) return undefined;
+    if (key.includes('.')) {
+      // Prefer user's deepFind; fallback to simple reduce
+      return (typeof deepFind === 'function')
+        ? deepFind(obj, key)
+        : key.split('.').reduce((o, k) => o?.[k], obj);
+    }
+    return obj[key];
+  };
+
+  // --- Matcher with priority: customMatcher > compareKeys > default ---
+  const customMatcher = opts.customMatcher;
+  const compareKeys = opts.compareKeys;
+
+  const isMatch = (a, b, ai, bi) => {
+    // 1. Highest priority: user-provided matcher
+    if (customMatcher) {
+      return customMatcher(a, b, ai, bi);
+    }
+
+    // 2. Compare by specified property paths (AND logic)
+    if (compareKeys && compareKeys.length > 0) {
+      return compareKeys.every(path => getValue(a, path) === getValue(b, path));
+    }
+
+    // 3. Default: arrays by first element, otherwise strict equality
+    if (Array.isArray(a) && Array.isArray(b)) {
+      return a[0] === b[0];
+    }
+    return a === b;
+  };
+
+  // --- Transform ---
+  const transformMatch = opts.transformMatch;
+  const applyTransform = (a, b, ai, bi) => {
+    if (!transformMatch) return [a, b];
+    const res = transformMatch(a, b, ai, bi);
+    return res || [a, b];
+  };
+
+  // --- LCS DP table ---
+  const m = src.length;
+  const n = tgt.length;
+  const dp = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (isMatch(src[i - 1], tgt[j - 1], i - 1, j - 1)) {
+        dp[i][j] = dp[i - 1][j - 1] + 1;
+      } else {
+        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+      }
+    }
+  }
+
+  // --- Backtrack to build aligned pairs ---
+  const outPairs = [];
+  let i = m, j = n;
+
+  while (i > 0 || j > 0) {
+    if (
+      i > 0 && j > 0 &&
+      isMatch(src[i - 1], tgt[j - 1], i - 1, j - 1) &&
+      dp[i][j] === dp[i - 1][j - 1] + 1
+    ) {
+      // Match: pair elements
+      let [a, b] = applyTransform(src[i - 1], tgt[j - 1], i - 1, j - 1);
+      const arr = [a, b];
+      arr['sourceRange'] = [i - 1, i - 1];
+      arr['targetRange'] = [j - 1, j - 1];
+      outPairs.unshift(arr);
+      i--; j--;
+    } else if (i > 0 && dp[i][j] === dp[i - 1][j]) {
+      // Deletion: element only in source
+      const arr = [src[i - 1], null];
+      arr['sourceRange'] = [i - 1, i - 1];
+      arr['targetRange'] = null;
+      outPairs.unshift(arr);
+      i--;
+    } else if (j > 0 && dp[i][j] === dp[i][j - 1]) {
+      // Insertion: element only in target
+      const arr = [null, tgt[j - 1]];
+      arr['sourceRange'] = null;
+      arr['targetRange'] = [j - 1, j - 1];
+      outPairs.unshift(arr);
+      j--;
+    } else {
+      // Safety fallback (should not happen with valid DP)
+      if (i > 0) { outPairs.unshift([src[i - 1], null]); i--; }
+      else { outPairs.unshift([null, tgt[j - 1]]); j--; }
+    }
+  }
+
+  return outPairs;
+}
 
 /**
  * Returns an element from the end of an array by index.
@@ -10411,3 +10745,31 @@ export function parsePseudoJson(input) {
 
   return str;
 };
+
+/**
+* Recursively resolves promises and thenables in objects and arrays.
+* @param {*} value The value to resolve.
+* @returns {Promise<*>} The value with all nested promises resolved.
+*/
+async function resolveDeep(value) {
+  if (value !== null && typeof value === 'object') {
+    if (typeof value.then === 'function') {
+      return resolveDeep.call(this, await value);
+    }
+
+    if (Array.isArray(value)) {
+      return Promise.all(value.map(resolveDeep.bind(this)));
+    }
+
+    return Object.fromEntries(
+      await Promise.all(
+        Object.entries(value).map(async ([key, value]) => [
+          key,
+          await resolveDeep.call(this, value),
+        ])
+      )
+    );
+  }
+
+  return value;
+}
