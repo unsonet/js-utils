@@ -92,6 +92,10 @@ hh7-dttp://132.34.33.145/123?пвапв=ываы#gsdfs
   const sentenceGarbage = /(?!(?<=\p{L})['’"`\-–](?=\p{L}))[^\p{L}\d&.,Λ ]/gum;
   const extraSpaces = /(\s)+/g;
 
+  //const variable = /([^ =,"\\&\?\n]+)\s*=\s*([\s\S]*?)(?=\n\n|$|\;)/gi; ///([^ =]+)\s*=\s*(.*?);/gim; // ([^=\n]+)\s*=\s*([\s\S]*?)(?=\n\n|$)
+  //const variableBlock = /[^¬]*${variableKeyRegExpStr}\s*=\s*|(?<=\})(\s*;\s*|\n+[^¬]*)$/gm;
+
+
   return {
     htmlTags, firstChar, jsonParser, allScripts, combiningDiacritics, cyrillicCombiningMarks, nonAscii,
     arrayExtractor, arrayParser, escapeString, parseArrayWithEscapedComma, pseudoSelectors,
@@ -1778,29 +1782,6 @@ export function retrieveWindowVariables(variables, doc?) {
   return ret;
 }
 
-/**
- * Extracts variables and their values from a string using a regular expression.
- * 
- * @param {string} string - The input string containing variable definitions.
- * @return {Object} - An object where keys are variable names and values are their parsed values.
- * @tags #string #parsing #utility
- */
-export function extractVariableFromString(string) {
-  let variables = {};
-  const regex = /([^ =,"\\&\?\n]+)\s*=\s*([\s\S]*?)(?=\n\n|$|\;)/gi; ///([^ =]+)\s*=\s*(.*?);/gim; // ([^=\n]+)\s*=\s*([\s\S]*?)(?=\n\n|$)
-  const matchList = [...string.matchAll(regex)];
-  for (let index = 0; index < matchList.length; index++) {
-    let match = matchList[index];
-    if (match && match?.length == 3) {
-      try {
-        variables[match[1]] = JSON5.parse(match[2]);
-      } catch (error) {
-        console.log(error)
-      }
-    }
-  }
-  return variables;
-}
 
 /**
  * Extracts the value(s) of specified variables from a string using a regular expression.
@@ -1811,6 +1792,7 @@ export function extractVariableFromString(string) {
  * @param {boolean} [insensitive=false] - Whether the search should be case-insensitive.
  * @return {Object} - An object where keys are variable names and values are their extracted values.
  * @tags #string #parsing #utility
+ * @deprecated Use findVariableAssignment() and extractVariableCode().
  */
 export function getVariableFromString(string, variable, multiple?, insensitive?) {
   variable = Array.isArray(variable) ? variable : [variable];
@@ -1828,50 +1810,1420 @@ export function getVariableFromString(string, variable, multiple?, insensitive?)
 }
 
 /**
- * Extracts variable values from JavaScript code by parsing it into an abstract syntax tree (AST).
+ * Extracts variables and their values from a string using a regular expression.
  * 
- * @param {string} code - The JavaScript code to analyze.
+ * @param {string} string - The input string containing variable definitions.
  * @return {Object} - An object where keys are variable names and values are their parsed values.
+ * @tags #string #parsing #utility
+ * @altName extractVariableFromString()
+ */
+export function extractVariableAssignments(string) {
+  // let variables = {};
+  // const regex = /([^ =,"\\&\?\n]+)\s*=\s*([\s\S]*?)(?=\n\n|$|\;)/gi; ///([^ =]+)\s*=\s*(.*?);/gim; // ([^=\n]+)\s*=\s*([\s\S]*?)(?=\n\n|$)
+  // const matchList = [...string.matchAll(regex)];
+  // for (let index = 0; index < matchList.length; index++) {
+  //   let match = matchList[index];
+  //   if (match && match?.length == 3) {
+  //     try {
+  //       variables[match[1]] = JSON5.parse(match[2]);
+  //     } catch (error) {
+  //       console.log(error)
+  //     }
+  //   }
+  // }
+  // return variables;
+
+  return collectVariableValues(string, false);
+}
+
+
+/**
+ * Extracts variable values from JavaScript code by parsing it into an abstract syntax tree (AST).
+ *
+ * Includes variable declarations and assignments.
+ *
+ * @param {string} code - JavaScript source code.
+ * @returns {Object} Extracted variable values.
  * @tags #parsing #javascript #ast #utility
  */
 export function extractVariableValues(code) {
+  // const parseExpression = (expr) => {
+  //   if (expr.type === 'ObjectExpression') {
+  //     const obj = {};
+  //     for (const prop of expr.properties) {
+  //       obj[prop.key.value] = parseExpression(prop.value);
+  //     }
+  //     return obj;
+  //   } else if (expr.type === 'ArrayExpression') {
+  //     return expr.elements.map(parseExpression);
+  //   } else if (expr.type === 'Literal') {
+  //     return expr.value;
+  //   }
+  // };
+  // const ast = acorn.parse(code, { sourceType: 'module', ecmaVersion: 'latest' });
+  // const variables = {};
+  // for (const statement of (ast as any).body) {
+  //   if (statement.type === 'ExpressionStatement') {
+  //     const expression = statement.expression;
+  //     if (
+  //       expression.type === 'AssignmentExpression' &&
+  //       expression.operator === '=' &&
+  //       expression.left.type === 'MemberExpression' &&
+  //       expression.left.object.type === 'Identifier' &&
+  //       expression.left.property.type === 'Identifier'
+  //     ) {
+  //       const variableName = expression.left.object.name + '.' + expression.left.property.name;
+  //       const value = parseExpression(expression.right);
+  //       variables[variableName] = value;
+  //     }
+  //   }
+  // }
+  // return variables;
 
-  const parseExpression = (expr) => {
-    if (expr.type === 'ObjectExpression') {
-      const obj = {};
-      for (const prop of expr.properties) {
-        obj[prop.key.value] = parseExpression(prop.value);
+  return collectVariableValues(code, true);
+}
+
+
+/**
+ * Sentinel value used to indicate that an expression could not be
+ * statically evaluated.
+ *
+ * @type {symbol}
+ */
+export const UNKNOWN = Symbol('UNKNOWN');
+
+/**
+ * Serializes a variable path into a normalized JavaScript-like property path.
+ *
+ * Identifier-compatible segments are written using dot notation, while
+ * other segments are written using bracket notation with JSON-encoded keys.
+ *
+ * @param {string[]} path - Variable path segments.
+ * @returns {string} Normalized serialized variable path.
+ *
+ * @example
+ * serializeVariablePath(['cjs', 'initialFeeds', 'fixtures']);
+ * // => 'cjs.initialFeeds.fixtures'
+ *
+ * @example
+ * serializeVariablePath(['foo', 'summary-fixtures']);
+ * // => 'foo["summary-fixtures"]'
+ */
+export function serializeVariablePath(path) {
+  return path
+    .map((segment, index) => {
+      if (index === 0) {
+        return segment;
       }
-      return obj;
-    } else if (expr.type === 'ArrayExpression') {
-      return expr.elements.map(parseExpression);
-    } else if (expr.type === 'Literal') {
-      return expr.value;
+
+      if (/^[A-Za-z_$][\w$]*$/.test(segment)) {
+        return `.${segment}`;
+      }
+
+      return `[${JSON.stringify(segment)}]`;
+    })
+    .join('');
+}
+
+/**
+ * Extracts a variable path from an ESTree MemberExpression node.
+ *
+ * Supports both dot notation and computed property access with static
+ * string or numeric expressions.
+ *
+ * @param {Object} node - ESTree MemberExpression or Identifier node.
+ * @param {Object} knownValues - Known statically evaluated variable values.
+ * @returns {string[]|null} Variable path segments, or null when the node
+ * cannot be converted to a static path.
+ *
+ * @example
+ * // cjs.initialFeeds['fixtures']
+ * // => ['cjs', 'initialFeeds', 'fixtures']
+ */
+export function getMemberExpressionPath(node, knownValues) {
+  if (!node) {
+    return null;
+  }
+
+  if (node.type === 'Identifier') {
+    return [node.name];
+  }
+
+  if (node.type !== 'MemberExpression') {
+    return null;
+  }
+
+  const objectPath = getMemberExpressionPath(
+    node.object,
+    knownValues
+  );
+
+  if (!objectPath) {
+    return null;
+  }
+
+  let property;
+
+  if (!node.computed) {
+    if (node.property.type !== 'Identifier') {
+      return null;
     }
-  };
 
-  const ast = acorn.parse(code, { sourceType: 'module', ecmaVersion: 'latest' });
+    property = node.property.name;
 
-  const variables = {};
+  } else {
+    property = evaluateStaticExpression(
+      node.property,
+      knownValues
+    );
 
-  for (const statement of (ast as any).body) {
-    if (statement.type === 'ExpressionStatement') {
-      const expression = statement.expression;
+    if (
+      property === UNKNOWN ||
+      (
+        typeof property !== 'string' &&
+        typeof property !== 'number'
+      )
+    ) {
+      return null;
+    }
+
+    property = String(property);
+  }
+
+  return [
+    ...objectPath,
+    property
+  ];
+}
+
+/**
+ * Extracts a static property key from an ESTree Property node.
+ *
+ * Supports identifier keys, literal keys, and computed keys that can be
+ * statically evaluated.
+ *
+ * @param {Object} node - ESTree Property node.
+ * @param {Object} knownValues - Known statically evaluated variable values.
+ * @returns {string|symbol} Property key or UNKNOWN when it cannot be resolved.
+ */
+export function getStaticPropertyKey(node, knownValues) {
+  if (!node.computed) {
+    if (node.key.type === 'Identifier') {
+      return node.key.name;
+    }
+
+    if (node.key.type === 'Literal') {
+      return String(node.key.value);
+    }
+
+    return UNKNOWN;
+  }
+
+  const key = evaluateStaticExpression(
+    node.key,
+    knownValues
+  );
+
+  if (
+    typeof key !== 'string' &&
+    typeof key !== 'number'
+  ) {
+    return UNKNOWN;
+  }
+
+  return String(key);
+}
+
+/**
+ * Resolves a previously known variable value by its normalized path.
+ *
+ * Attempts both a direct lookup by serialized path and traversal through
+ * the root variable value.
+ *
+ * @param {string[]} path - Variable path segments.
+ * @param {Object} knownValues - Known statically evaluated variable values.
+ * @returns {*} Resolved value, or UNKNOWN when the value cannot be resolved.
+ */
+export function getKnownVariableValue(path, knownValues) {
+  const key = serializeVariablePath(path);
+
+  if (Object.hasOwn(knownValues, key)) {
+    return knownValues[key];
+  }
+
+  // Try resolving through the root object.
+  const root = path[0];
+
+  if (!Object.hasOwn(knownValues, root)) {
+    return UNKNOWN;
+  }
+
+  let value = knownValues[root];
+
+  for (let index = 1; index < path.length; index++) {
+    if (
+      value === null ||
+      value === undefined
+    ) {
+      return UNKNOWN;
+    }
+
+    value = value[path[index]];
+  }
+
+  return value;
+}
+
+/**
+ * Evaluates a binary expression using already evaluated operands.
+ *
+ * Only operators that can be safely evaluated without executing arbitrary
+ * JavaScript are supported.
+ *
+ * @param {string} operator - Binary operator.
+ * @param {*} left - Evaluated left operand.
+ * @param {*} right - Evaluated right operand.
+ * @returns {*} Evaluation result, or UNKNOWN for unsupported operations.
+ */
+export function evaluateBinaryExpression(operator, left, right) {
+  switch (operator) {
+    case '+':
+      return left + right;
+
+    case '-':
+      return left - right;
+
+    case '*':
+      return left * right;
+
+    case '/':
+      return left / right;
+
+    case '%':
+      return left % right;
+
+    case '**':
+      return left ** right;
+
+    case '==':
+      return left == right;
+
+    case '!=':
+      return left != right;
+
+    case '===':
+      return left === right;
+
+    case '!==':
+      return left !== right;
+
+    case '<':
+      return left < right;
+
+    case '<=':
+      return left <= right;
+
+    case '>':
+      return left > right;
+
+    case '>=':
+      return left >= right;
+
+    case '<<':
+      return left << right;
+
+    case '>>':
+      return left >> right;
+
+    case '>>>':
+      return left >>> right;
+
+    case '&':
+      return left & right;
+
+    case '|':
+      return left | right;
+
+    case '^':
+      return left ^ right;
+
+    case 'in':
+      return left in Object(right);
+
+    case 'instanceof':
+      return left instanceof right;
+
+    default:
+      return UNKNOWN;
+  }
+}
+
+/**
+ * Evaluates a unary expression using a statically evaluated operand.
+ *
+ * Supports common JavaScript unary operators such as `+`, `-`, `!`, `~`,
+ * `typeof`, and `void`.
+ *
+ * @param {string} operator - Unary operator.
+ * @param {Object} argument - ESTree expression node.
+ * @param {Object} knownValues - Known statically evaluated variable values.
+ * @returns {*} Evaluation result, or UNKNOWN when the expression cannot
+ * be statically evaluated.
+ */
+export function evaluateUnaryExpression(operator, argument, knownValues) {
+  if (operator === 'typeof') {
+    if (argument.type === 'Identifier') {
       if (
-        expression.type === 'AssignmentExpression' &&
-        expression.operator === '=' &&
-        expression.left.type === 'MemberExpression' &&
-        expression.left.object.type === 'Identifier' &&
-        expression.left.property.type === 'Identifier'
+        argument.name === 'undefined' ||
+        !Object.hasOwn(knownValues, argument.name)
       ) {
-        const variableName = expression.left.object.name + '.' + expression.left.property.name;
-        const value = parseExpression(expression.right);
-        variables[variableName] = value;
+        return 'undefined';
       }
     }
   }
 
+  if (operator === 'void') {
+    return undefined;
+  }
+
+  const value = evaluateStaticExpression(
+    argument,
+    knownValues
+  );
+
+  if (value === UNKNOWN) {
+    return UNKNOWN;
+  }
+
+  switch (operator) {
+    case '+':
+      return +value;
+
+    case '-':
+      return -value;
+
+    case '!':
+      return !value;
+
+    case '~':
+      return ~value;
+
+    case 'typeof':
+      return typeof value;
+
+    default:
+      return UNKNOWN;
+  }
+}
+
+/**
+ * Statically evaluates an ESTree expression without executing arbitrary
+ * JavaScript code.
+ *
+ * Supports literals, identifiers, member expressions, arrays, objects,
+ * unary expressions, binary expressions, logical expressions,
+ * conditional expressions, template literals, sequence expressions,
+ * assignment expressions, and related wrapper expressions.
+ *
+ * @param {Object} node - ESTree expression node.
+ * @param {Object} knownValues - Known statically evaluated variable values.
+ * @returns {*} Evaluated JavaScript value, or UNKNOWN when the expression
+ * cannot be statically evaluated.
+ */
+export function evaluateStaticExpression(node, knownValues) {
+  if (!node) {
+    return UNKNOWN;
+  }
+
+  switch (node.type) {
+
+    // ---------------------------------------------------------
+    // Literals
+    // ---------------------------------------------------------
+
+    case 'Literal':
+      return node.value;
+
+    // ---------------------------------------------------------
+    // Identifiers
+    // ---------------------------------------------------------
+
+    case 'Identifier':
+      if (node.name === 'undefined') {
+        return undefined;
+      }
+
+      if (node.name === 'NaN') {
+        return NaN;
+      }
+
+      if (node.name === 'Infinity') {
+        return Infinity;
+      }
+
+      if (Object.hasOwn(knownValues, node.name)) {
+        return knownValues[node.name];
+      }
+
+      return UNKNOWN;
+
+    // ---------------------------------------------------------
+    // Member expression
+    // ---------------------------------------------------------
+
+    case 'MemberExpression': {
+      const path = getMemberExpressionPath(
+        node,
+        knownValues
+      );
+
+      if (path) {
+        const knownValue = getKnownVariableValue(
+          path,
+          knownValues
+        );
+
+        if (knownValue !== UNKNOWN) {
+          return knownValue;
+        }
+      }
+
+      const object = evaluateStaticExpression(
+        node.object,
+        knownValues
+      );
+
+      if (
+        object === UNKNOWN ||
+        object === null ||
+        object === undefined
+      ) {
+        return UNKNOWN;
+      }
+
+      const property = node.computed
+        ? evaluateStaticExpression(
+          node.property,
+          knownValues
+        )
+        : node.property.name;
+
+      if (property === UNKNOWN) {
+        return UNKNOWN;
+      }
+
+      try {
+        return object[property];
+      } catch (error) {
+        return UNKNOWN;
+      }
+    }
+
+    // ---------------------------------------------------------
+    // Arrays
+    // ---------------------------------------------------------
+
+    case 'ArrayExpression': {
+      const result = [];
+
+      for (const element of node.elements) {
+        if (!element) {
+          result.push(undefined);
+          continue;
+        }
+
+        if (element.type === 'SpreadElement') {
+          const value = evaluateStaticExpression(
+            element.argument,
+            knownValues
+          );
+
+          if (
+            value === UNKNOWN ||
+            value == null ||
+            typeof value[Symbol.iterator] !== 'function'
+          ) {
+            continue;
+          }
+
+          result.push(...value);
+          continue;
+        }
+
+        const value = evaluateStaticExpression(
+          element,
+          knownValues
+        );
+
+        result.push(
+          value === UNKNOWN
+            ? undefined
+            : value
+        );
+      }
+
+      return result;
+    }
+
+    // ---------------------------------------------------------
+    // Objects
+    // ---------------------------------------------------------
+
+    case 'ObjectExpression': {
+      const result = {};
+
+      for (const property of node.properties) {
+
+        if (property.type === 'SpreadElement') {
+          const value = evaluateStaticExpression(
+            property.argument,
+            knownValues
+          );
+
+          if (
+            value !== UNKNOWN &&
+            value !== null &&
+            value !== undefined
+          ) {
+            Object.assign(result, value);
+          }
+
+          continue;
+        }
+
+        if (
+          property.type !== 'Property' ||
+          property.kind !== 'init'
+        ) {
+          continue;
+        }
+
+        const key = getStaticPropertyKey(
+          property,
+          knownValues
+        );
+
+        if (key === UNKNOWN) {
+          continue;
+        }
+
+        const value = evaluateStaticExpression(
+          property.value,
+          knownValues
+        );
+
+        result[key] =
+          value === UNKNOWN
+            ? undefined
+            : value;
+      }
+
+      return result;
+    }
+
+    // ---------------------------------------------------------
+    // Unary
+    // ---------------------------------------------------------
+
+    case 'UnaryExpression':
+      return evaluateUnaryExpression(
+        node.operator,
+        node.argument,
+        knownValues
+      );
+
+    // ---------------------------------------------------------
+    // Binary
+    // ---------------------------------------------------------
+
+    case 'BinaryExpression': {
+      const left = evaluateStaticExpression(
+        node.left,
+        knownValues
+      );
+
+      const right = evaluateStaticExpression(
+        node.right,
+        knownValues
+      );
+
+      if (
+        left === UNKNOWN ||
+        right === UNKNOWN
+      ) {
+        return UNKNOWN;
+      }
+
+      try {
+        return evaluateBinaryExpression(
+          node.operator,
+          left,
+          right
+        );
+      } catch (error) {
+        return UNKNOWN;
+      }
+    }
+
+    // ---------------------------------------------------------
+    // Logical
+    // ---------------------------------------------------------
+
+    case 'LogicalExpression': {
+      const left = evaluateStaticExpression(
+        node.left,
+        knownValues
+      );
+
+      if (left === UNKNOWN) {
+        return UNKNOWN;
+      }
+
+      if (node.operator === '&&') {
+        if (!left) {
+          return left;
+        }
+
+        return evaluateStaticExpression(
+          node.right,
+          knownValues
+        );
+      }
+
+      if (node.operator === '||') {
+        if (left) {
+          return left;
+        }
+
+        return evaluateStaticExpression(
+          node.right,
+          knownValues
+        );
+      }
+
+      if (node.operator === '??') {
+        if (
+          left !== null &&
+          left !== undefined
+        ) {
+          return left;
+        }
+
+        return evaluateStaticExpression(
+          node.right,
+          knownValues
+        );
+      }
+
+      return UNKNOWN;
+    }
+
+    // ---------------------------------------------------------
+    // Conditional
+    // ---------------------------------------------------------
+
+    case 'ConditionalExpression': {
+      const test = evaluateStaticExpression(
+        node.test,
+        knownValues
+      );
+
+      if (test === UNKNOWN) {
+        return UNKNOWN;
+      }
+
+      return evaluateStaticExpression(
+        test
+          ? node.consequent
+          : node.alternate,
+        knownValues
+      );
+    }
+
+    // ---------------------------------------------------------
+    // Template literal
+    // ---------------------------------------------------------
+
+    case 'TemplateLiteral': {
+      let result = '';
+
+      for (
+        let index = 0;
+        index < node.quasis.length;
+        index++
+      ) {
+        result += node.quasis[index].value.cooked;
+
+        if (
+          index < node.expressions.length
+        ) {
+          const value =
+            evaluateStaticExpression(
+              node.expressions[index],
+              knownValues
+            );
+
+          if (value === UNKNOWN) {
+            return UNKNOWN;
+          }
+
+          result += String(value);
+        }
+      }
+
+      return result;
+    }
+
+    // ---------------------------------------------------------
+    // Sequence
+    // ---------------------------------------------------------
+
+    case 'SequenceExpression': {
+      let value = UNKNOWN;
+
+      for (const expression of node.expressions) {
+        value = evaluateStaticExpression(
+          expression,
+          knownValues
+        );
+      }
+
+      return value;
+    }
+
+    // ---------------------------------------------------------
+    // Parenthesized / chain expressions
+    // ---------------------------------------------------------
+
+    case 'ChainExpression':
+    case 'ParenthesizedExpression':
+      return evaluateStaticExpression(
+        node.expression,
+        knownValues
+      );
+
+    // ---------------------------------------------------------
+    // Assignment expression
+    // ---------------------------------------------------------
+
+    case 'AssignmentExpression': {
+      if (node.operator !== '=') {
+        return UNKNOWN;
+      }
+
+      const value = evaluateStaticExpression(
+        node.right,
+        knownValues
+      );
+
+      const path = getMemberExpressionPath(
+        node.left,
+        knownValues
+      );
+
+      if (
+        path &&
+        value !== UNKNOWN
+      ) {
+        knownValues[
+          serializeVariablePath(path)
+        ] = value;
+      }
+
+      return value;
+    }
+
+    default:
+      return UNKNOWN;
+  }
+}
+
+/**
+ * Recursively traverses an ESTree AST and invokes a callback for each node.
+ *
+ * @param {Object} node - ESTree AST node.
+ * @param {Function} callback - Function invoked for every visited node.
+ * @returns {void}
+ */
+export function walkAst(node, callback) {
+  if (!node || typeof node !== 'object') {
+    return;
+  }
+
+  callback(node);
+
+  for (const key of Object.keys(node)) {
+    if (key === 'type') {
+      continue;
+    }
+
+    const value = node[key];
+
+    if (Array.isArray(value)) {
+      for (const child of value) {
+        if (
+          child &&
+          typeof child.type === 'string'
+        ) {
+          walkAst(child, callback);
+        }
+      }
+
+      continue;
+    }
+
+    if (
+      value &&
+      typeof value.type === 'string'
+    ) {
+      walkAst(value, callback);
+    }
+  }
+}
+
+/**
+ * Parses JavaScript source code and collects statically evaluable variable
+ * declarations and assignments.
+ *
+ * @param {string} code - JavaScript source code.
+ * @param {boolean} includeDeclarations - Whether variable declarations
+ * (`const`, `let`, `var`) should be included in the result.
+ * @returns {Object} An object containing extracted variable names and values.
+ *
+ * @throws {Error} Throws when the source code cannot be parsed by Acorn.
+ */
+export function collectVariableValues(code, includeDeclarations) {
+  const ast = acorn.parse(code, {
+    sourceType: 'module',
+    ecmaVersion: 'latest'
+  });
+
+  const variables = {};
+  const knownValues = {};
+
+  walkAst(ast, node => {
+
+    // ---------------------------------------------------------
+    // Variable declarations
+    // ---------------------------------------------------------
+
+    if (
+      includeDeclarations &&
+      node.type === 'VariableDeclarator' &&
+      node.id.type === 'Identifier'
+    ) {
+      const value = evaluateStaticExpression(
+        node.init,
+        knownValues
+      );
+
+      const variableName = node.id.name;
+
+      variables[variableName] =
+        value === UNKNOWN
+          ? undefined
+          : value;
+
+      if (value !== UNKNOWN) {
+        knownValues[variableName] = value;
+      }
+
+      return;
+    }
+
+    // ---------------------------------------------------------
+    // Assignments
+    // ---------------------------------------------------------
+
+    if (
+      node.type === 'AssignmentExpression' &&
+      node.operator === '='
+    ) {
+      const path = getMemberExpressionPath(
+        node.left,
+        knownValues
+      );
+
+      if (!path) {
+        return;
+      }
+
+      const value = evaluateStaticExpression(
+        node.right,
+        knownValues
+      );
+
+      const variableName =
+        serializeVariablePath(path);
+
+      variables[variableName] =
+        value === UNKNOWN
+          ? undefined
+          : value;
+
+      if (value !== UNKNOWN) {
+        knownValues[variableName] = value;
+      }
+    }
+  });
+
   return variables;
+}
+
+/**
+ * Creates a regular expression for matching a variable assignment.
+ *
+ * Supports:
+ * - Dot notation: `foo.bar`
+ * - Optional chaining: `foo?.bar`
+ * - Single-quoted bracket notation: `foo['bar']`
+ * - Double-quoted bracket notation: `foo["bar"]`
+ * - Optional-chaining bracket notation: `foo?.['bar']`
+ * - Mixed notation
+ *
+ * @param {string} variableKey - Variable path.
+ * @param {Object} [options] - Regular expression options.
+ * @param {boolean} [options.optimize=true] - Whether to use the optimized implementation.
+ * @param {boolean} [options.insensitive=false] - Whether matching should be case-insensitive.
+ * @returns {RegExp} Variable assignment regular expression.
+ */
+export function createVariableAssignmentRegExp(
+  variableKey,
+  options
+) {
+  const {
+    optimize = true,
+    insensitive = false
+  } = options;
+
+  const flags = `gm${insensitive ? 'i' : ''}`;
+
+  const variablePath = splitPath(variableKey);
+
+  if (!variablePath.length) {
+    return /$a/;
+  }
+
+  // ---------------------------------------------------------
+  // Original
+  // ---------------------------------------------------------
+
+  if (!optimize) {
+    const variableKeyRegExpStr = escapeRegExp(variableKey)
+      .replace(/['"]/g, `['"]`);
+
+    return new RegExp(
+      variableKeyRegExpStr +
+      '\\s*' +
+      '(?<![=!<>])=(?!=|>)' +
+      '\\s*',
+      flags
+    );
+  }
+
+  // ---------------------------------------------------------
+  // Optimized
+  // ---------------------------------------------------------
+
+  const firstSegment = escapeRegExp(variablePath[0]);
+
+  let variableRegExpStr =
+    `(?<![\\w$.\\]])${firstSegment}`;
+
+  for (let index = 1; index < variablePath.length; index++) {
+    const segment = escapeRegExp(variablePath[index]);
+
+    variableRegExpStr +=
+      '(?:' +
+
+      // -------------------------------------------------
+      // .segment
+      // ?.segment
+      // -------------------------------------------------
+
+      `\\s*(?:\\.|\\?\\.)\\s*${segment}` +
+
+      '|' +
+
+      // -------------------------------------------------
+      // ['segment']
+      // ["segment"]
+      // ?.['segment']
+      // ?.["segment"]
+      // -------------------------------------------------
+
+      `\\s*(?:\\?\\.)?\\s*\\[\\s*` +
+      `(?:'${segment}'|"${segment}")` +
+      `\\s*\\]` +
+
+      ')';
+  }
+
+  // ---------------------------------------------------------
+  // Assignment operator
+  // ---------------------------------------------------------
+
+  variableRegExpStr +=
+    '\\s*' +
+    '(?<![=!<>])=(?!=|>)' +
+    '\\s*';
+
+  return new RegExp(
+    variableRegExpStr,
+    flags
+  );
+}
+
+/**
+ * Checks whether a variable assignment exists in source code.
+ *
+ * @param {string} text - Source code text.
+ * @param {string} variableKey - Variable path.
+ * @param {boolean} [options.optimize=true] - Whether to use the optimized implementation.
+ * @param {boolean} [options.insensitive=false] - Whether matching should be case-insensitive.
+ * @returns {boolean} Whether the variable assignment exists.
+ */
+export function hasVariableAssignment(text, variableKey, options) {
+  let { optimize = true, insensitive = false } = options || {};
+  if (typeof text !== 'string') {
+    return false;
+  }
+
+  if (!variableKey) {
+    return false;
+  }
+
+  // Cheap pre-filter.
+  // Do not use it for case-insensitive matching.
+  if (
+    optimize &&
+    !insensitive
+  ) {
+    const variablePath = splitPath(variableKey);
+
+    if (
+      variablePath.length &&
+      !text.includes(variablePath[0])
+    ) {
+      return false;
+    }
+  }
+
+  return createVariableAssignmentRegExp(
+    variableKey,
+    {
+      optimize,
+      insensitive
+    }
+  ).test(text);
+}
+
+/**
+ * Finds a variable assignment in source code.
+ *
+ * @param {string} text - Source code text.
+ * @param {string} variableKey - Variable path.
+ * @param {boolean} [options.optimize=true] - Whether to use the optimized implementation.
+ * @param {boolean} [options.insensitive=false] - Whether matching should be case-insensitive.
+ * @returns {{index: number, valueStart: number, match: string}|null}
+ */
+export function findVariableAssignment(text, variableKey, options) {
+  let { optimize = true, insensitive = false } = options || {};
+  if (typeof text !== 'string' || !variableKey) {
+    return null;
+  }
+
+  if (
+    optimize &&
+    !insensitive
+  ) {
+    const variablePath = splitPath(variableKey);
+
+    if (
+      variablePath.length &&
+      !text.includes(variablePath[0])
+    ) {
+      return null;
+    }
+  }
+
+  const regExp = createVariableAssignmentRegExp(
+    variableKey,
+    {
+      optimize,
+      insensitive
+    }
+  );
+
+  const match = regExp.exec(text);
+
+  if (!match) {
+    return null;
+  }
+
+  return {
+    index: match.index,
+    valueStart: match.index + match[0].length,
+    match: match[0]
+  };
+}
+
+/**
+ * Extracts the JavaScript expression assigned to a variable.
+ *
+ * Uses Acorn when available and falls back to an internal source-code
+ * scanner when Acorn is unavailable or cannot parse the expression.
+ *
+ * Supports:
+ * - Objects
+ * - Arrays
+ * - Strings
+ * - Template literals
+ * - Function calls
+ * - Parenthesized expressions
+ * - Nested expressions
+ * - Primitive values
+ * - Other JavaScript expressions
+ *
+ * @param {string} text - Source code text.
+ * @param {string} variableKey - Variable path.
+ * @param {Object} [options] - Extraction options.
+ * @param {boolean} [options.optimize=true] - Whether to use the optimized implementation.
+ * @param {boolean} [options.insensitive=false] - Whether variable matching is case-insensitive.
+ * @param {Object} [options.acorn] - Optional Acorn parser instance.
+ * @returns {string|null} Extracted expression code or null.
+ */
+export function extractVariableCode(
+  text,
+  variableKey,
+  options
+) {
+  const assignment = findVariableAssignment(
+    text,
+    variableKey,
+    options
+  );
+
+  if (!assignment) {
+    return null;
+  }
+
+  let start = assignment.valueStart;
+
+  while (
+    start < text.length &&
+    /\s/.test(text[start])
+  ) {
+    start++;
+  }
+
+  if (start >= text.length) {
+    return null;
+  }
+
+  // ---------------------------------------------------------
+  // Acorn
+  // ---------------------------------------------------------
+
+  const acornParser =
+    options?.acorn ||
+    (
+      typeof acorn !== 'undefined'
+        ? acorn
+        : globalThis?.acorn
+    );
+
+  if (acornParser?.parseExpressionAt) {
+    try {
+      const expression = acornParser.parseExpressionAt(
+        text,
+        start,
+        {
+          ecmaVersion: 'latest',
+          sourceType: 'script'
+        }
+      );
+
+      return text
+        .slice(start, expression.end)
+        .trim();
+
+    } catch (error) {
+      // Fall through to the internal scanner.
+    }
+  }
+
+  // ---------------------------------------------------------
+  // Fallback
+  // ---------------------------------------------------------
+
+  return extractVariableCodeFallback(
+    text,
+    start
+  );
+}
+
+/**
+ * Extracts a JavaScript expression without using an external parser.
+ *
+ * Scans the source code while respecting strings, template literals,
+ * comments, and nested brackets. The expression ends at a top-level
+ * semicolon, line break, or the end of the source.
+ *
+ * @param {string} text - Source code text.
+ * @param {number} start - Index where the expression starts.
+ * @returns {string|null} Extracted expression code or null.
+ */
+export function extractVariableCodeFallback(text, start) {
+  let quote = null;
+  let comment = null;
+
+  const brackets = [];
+
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    const next = text[i + 1];
+
+    // ---------------------------------------------------------
+    // Line comment
+    // ---------------------------------------------------------
+
+    if (comment === 'line') {
+      if (ch === '\n' || ch === '\r') {
+        return text.slice(start, i).trim();
+      }
+
+      continue;
+    }
+
+    // ---------------------------------------------------------
+    // Block comment
+    // ---------------------------------------------------------
+
+    if (comment === 'block') {
+      if (ch === '*' && next === '/') {
+        comment = null;
+        i++;
+      }
+
+      continue;
+    }
+
+    // ---------------------------------------------------------
+    // String / template literal
+    // ---------------------------------------------------------
+
+    if (quote) {
+      if (
+        ch === quote &&
+        !isEscaped(text, i)
+      ) {
+        quote = null;
+      }
+
+      continue;
+    }
+
+    // ---------------------------------------------------------
+    // Comments
+    // ---------------------------------------------------------
+
+    if (ch === '/' && next === '/') {
+      comment = 'line';
+      i++;
+      continue;
+    }
+
+    if (ch === '/' && next === '*') {
+      comment = 'block';
+      i++;
+      continue;
+    }
+
+    // ---------------------------------------------------------
+    // Strings
+    // ---------------------------------------------------------
+
+    if (
+      ch === '"' ||
+      ch === "'" ||
+      ch === '`'
+    ) {
+      quote = ch;
+      continue;
+    }
+
+    // ---------------------------------------------------------
+    // Nested expressions
+    // ---------------------------------------------------------
+
+    if (
+      ch === '{' ||
+      ch === '[' ||
+      ch === '('
+    ) {
+      brackets.push(ch);
+      continue;
+    }
+
+    if (
+      ch === '}' ||
+      ch === ']' ||
+      ch === ')'
+    ) {
+      const expected = {
+        '}': '{',
+        ']': '[',
+        ')': '('
+      }[ch];
+
+      if (
+        brackets[brackets.length - 1] === expected
+      ) {
+        brackets.pop();
+      }
+
+      continue;
+    }
+
+    // ---------------------------------------------------------
+    // Top-level expression terminators
+    // ---------------------------------------------------------
+
+    if (!brackets.length) {
+      if (ch === ';') {
+        return text.slice(start, i).trim();
+      }
+
+      if (ch === '\n' || ch === '\r') {
+        return text.slice(start, i).trim();
+      }
+    }
+  }
+
+  const result = text.slice(start).trim();
+
+  return result || null;
+}
+
+/**
+ * Checks if a character at a given index in a string is escaped by a backslash.
+ * @param {string} text - The input string to check.
+ * @param {number} index - The index of the character to check.
+ * @returns {boolean} - True if the character is escaped (odd number of preceding backslashes), false otherwise.
+ */
+export function isEscaped(text, index) {
+  let backslashes = 0;
+
+  for (
+    let i = index - 1;
+    i >= 0 && text[i] === '\\';
+    i--
+  ) {
+    backslashes++;
+  }
+
+  return backslashes % 2 === 1;
 }
 
 /**
@@ -2604,7 +3956,7 @@ export function splitByIndex(value, indexes, { exclude = false } = {}) {
  * @param {string} path - The path string to split into segments.
  * @param {RegExp} customSplitRegExp - Regular expression for splitting a path 
  * @returns {string[]} - An array of path segments. Returns an empty array if the path does not match the pattern.
- *
+ * @altNames parseVariableName, parsePath
  */
 export function splitPath(path, customSplitRegExp?) {
   const defaultSplitRegExp = /(?:(?:[^.\[\]\/\\"']{1,}\s{0,}|[^.\[\]\/\\"']\s{0,}(?<=\w|\d|\S))){1,}/gim;
@@ -10528,25 +11880,209 @@ export function csvEscape(value, delim) {
  * - Unquoted object keys
  * - Nested objects and arrays
  * - Strings enclosed in single quotes ('), double quotes ("), or backticks (`)
+ * - JavaScript string escape sequences
  * - Numbers
  * - Booleans (`true`, `false`)
  * - `null`
- *
- * Examples:
- * parsePseudoJson('{foo: 123, bar: {baz: "test"}}')
- * // => { foo: 123, bar: { baz: "test" } }
- *
- * parsePseudoJson('[1, 2, {name: "John"}]')
- * // => [1, 2, { name: "John" }]
  *
  * @param {string|*} input - The value to parse. Non-string values are returned unchanged.
  * @returns {*} The parsed JavaScript value.
  */
 export function parsePseudoJson(input) {
 
-  function splitTopLevel(str, separator) {
+
+
+  function decodeStringLiteral(str) {
+    const quote = str[0];
     const result = [];
 
+    for (let i = 1; i < str.length - 1; i++) {
+      const ch = str[i];
+
+      if (ch !== '\\') {
+        result.push(ch);
+        continue;
+      }
+
+      if (i + 1 >= str.length - 1) {
+        result.push('\\');
+        break;
+      }
+
+      const next = str[++i];
+
+      // ---------------------------------------------------------
+      // Line continuation
+      // ---------------------------------------------------------
+
+      if (next === '\n') {
+        continue;
+      }
+
+      if (next === '\r') {
+        if (str[i + 1] === '\n') {
+          i++;
+        }
+
+        continue;
+      }
+
+      // ---------------------------------------------------------
+      // Unicode: \u{1F600}
+      // ---------------------------------------------------------
+
+      if (next === 'u' && str[i + 1] === '{') {
+        const end = str.indexOf('}', i + 2);
+
+        if (end !== -1) {
+          const hex = str.slice(i + 2, end);
+
+          if (/^[0-9a-fA-F]+$/.test(hex)) {
+            const codePoint = parseInt(hex, 16);
+
+            if (codePoint <= 0x10FFFF) {
+              result.push(String.fromCodePoint(codePoint));
+              i = end;
+
+              continue;
+            }
+          }
+        }
+
+        // Invalid escape — preserve it.
+        result.push('\\u');
+        continue;
+      }
+
+      // ---------------------------------------------------------
+      // Unicode: \uFFFF
+      // ---------------------------------------------------------
+
+      if (next === 'u') {
+        const hex = str.slice(i + 1, i + 5);
+
+        if (/^[0-9a-fA-F]{4}$/.test(hex)) {
+          result.push(
+            String.fromCharCode(parseInt(hex, 16))
+          );
+
+          i += 4;
+          continue;
+        }
+
+        // Invalid escape — preserve it.
+        result.push('\\u');
+        continue;
+      }
+
+      // ---------------------------------------------------------
+      // Hexadecimal: \xFF
+      // ---------------------------------------------------------
+
+      if (next === 'x') {
+        const hex = str.slice(i + 1, i + 3);
+
+        if (/^[0-9a-fA-F]{2}$/.test(hex)) {
+          result.push(
+            String.fromCharCode(parseInt(hex, 16))
+          );
+
+          i += 2;
+          continue;
+        }
+
+        // Invalid escape — preserve it.
+        result.push('\\x');
+        continue;
+      }
+
+      // ---------------------------------------------------------
+      // Octal: \123
+      // ---------------------------------------------------------
+
+      if (/[0-7]/.test(next)) {
+        let octal = next;
+
+        while (
+          octal.length < 3 &&
+          /[0-7]/.test(str[i + 1])
+        ) {
+          octal += str[++i];
+        }
+
+        result.push(
+          String.fromCharCode(parseInt(octal, 8))
+        );
+
+        continue;
+      }
+
+      // ---------------------------------------------------------
+      // Standard JavaScript escape sequences
+      // ---------------------------------------------------------
+
+      switch (next) {
+        case '0':
+          result.push('\0');
+          break;
+
+        case 'b':
+          result.push('\b');
+          break;
+
+        case 'f':
+          result.push('\f');
+          break;
+
+        case 'n':
+          result.push('\n');
+          break;
+
+        case 'r':
+          result.push('\r');
+          break;
+
+        case 't':
+          result.push('\t');
+          break;
+
+        case 'v':
+          result.push('\v');
+          break;
+
+        case '\\':
+          result.push('\\');
+          break;
+
+        case '/':
+          result.push('/');
+          break;
+
+        case '\'':
+          result.push('\'');
+          break;
+
+        case '"':
+          result.push('"');
+          break;
+
+        case '`':
+          result.push('`');
+          break;
+
+        default:
+          // JavaScript allows identity escapes in
+          // several string contexts.
+          result.push(next);
+          break;
+      }
+    }
+
+    return result.join('');
+  }
+
+  function splitTopLevel(str, separator) {
+    const result = [];
     let start = 0;
     let braces = 0;
     let brackets = 0;
@@ -10557,8 +12093,10 @@ export function parsePseudoJson(input) {
       const ch = str[i];
 
       if (quote) {
-        if (ch === quote && str[i - 1] !== '\\')
+        if (ch === quote && !isEscaped(str, i)) {
           quote = null;
+        }
+
         continue;
       }
 
@@ -10620,8 +12158,10 @@ export function parsePseudoJson(input) {
       const ch = str[i];
 
       if (quote) {
-        if (ch === quote && str[i - 1] !== '\\')
+        if (ch === quote && !isEscaped(str, i)) {
           quote = null;
+        }
+
         continue;
       }
 
@@ -10663,6 +12203,7 @@ export function parsePseudoJson(input) {
           ) {
             return i;
           }
+
           break;
       }
     }
@@ -10670,63 +12211,78 @@ export function parsePseudoJson(input) {
     return -1;
   }
 
-  if (typeof input !== 'string')
+  if (typeof input !== 'string') {
     return input;
+  }
 
   const str = input.trim();
 
-  // primitives
-  if (str === 'true')
+  // ---------------------------------------------------------
+  // Primitive values
+  // ---------------------------------------------------------
+
+  if (str === 'true') {
     return true;
-
-  if (str === 'false')
-    return false;
-
-  if (str === 'null')
-    return null;
-
-  if (str !== '' && !isNaN(Number(str)))
-    return Number(str);
-
-  // string
-  if (
-    (str.startsWith('"') && str.endsWith('"')) ||
-    (str.startsWith("'") && str.endsWith("'")) ||
-    (str.startsWith('`') && str.endsWith('`'))
-  ) {
-    const unquoted = str.slice(1, -1);
-
-    // Снимаем только верхние кавычки и отдаем содержимое на стандартный парсинг
-    return parsePseudoJson(unquoted);
   }
 
-  // object
-  if (str.startsWith('{') && str.endsWith('}')) {
+  if (str === 'false') {
+    return false;
+  }
 
+  if (str === 'null') {
+    return null;
+  }
+
+  if (str !== '' && !isNaN(Number(str))) {
+    return Number(str);
+  }
+
+  // ---------------------------------------------------------
+  // String
+  // ---------------------------------------------------------
+
+  if (
+    str.length >= 2 &&
+    (str[0] === '"' ||
+      str[0] === "'" ||
+      str[0] === '`') &&
+    str[str.length - 1] === str[0]
+  ) {
+    return decodeStringLiteral(str);
+  }
+
+  // ---------------------------------------------------------
+  // Object
+  // ---------------------------------------------------------
+
+  if (str.startsWith('{') && str.endsWith('}')) {
     const result = {};
     const inner = str.slice(1, -1).trim();
 
-    if (!inner)
+    if (!inner) {
       return result;
+    }
 
     const pairs = splitTopLevel(inner, ',');
 
     for (const pair of pairs) {
-
       const colon = findTopLevelColon(pair);
 
-      if (colon === -1)
+      if (colon === -1) {
         continue;
+      }
 
       let key = pair.slice(0, colon).trim();
       const value = pair.slice(colon + 1).trim();
 
       if (
-        (key.startsWith('"') && key.endsWith('"')) ||
-        (key.startsWith("'") && key.endsWith("'")) ||
-        (key.startsWith('`') && key.endsWith('`'))
+        key.length >= 2 &&
+        (key[0] === '"' ||
+          key[0] === "'" ||
+          key[0] === '`') &&
+        key[key.length - 1] === key[0]
       ) {
-        key = key.slice(1, -1);
+        key = decodeStringLiteral(key);
       }
 
       result[key] = parsePseudoJson(value);
@@ -10735,16 +12291,22 @@ export function parsePseudoJson(input) {
     return result;
   }
 
+  // ---------------------------------------------------------
+  // Array
+  // ---------------------------------------------------------
+
   if (str.startsWith('[') && str.endsWith(']')) {
     const inner = str.slice(1, -1).trim();
-    if (!inner)
+
+    if (!inner) {
       return [];
+    }
 
     return splitTopLevel(inner, ',').map(parsePseudoJson);
   }
 
   return str;
-};
+}
 
 /**
 * Recursively resolves promises and thenables in objects and arrays.
